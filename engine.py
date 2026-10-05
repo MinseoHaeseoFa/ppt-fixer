@@ -4,7 +4,6 @@
 동아시아(ea) 서체를 명시적으로 지정해 'ㅁㅁㅁ' 깨짐을 원천 차단한다.
 """
 import io
-from http.server import BaseHTTPRequestHandler
 
 import pymupdf
 from pptx import Presentation
@@ -335,22 +334,3 @@ def build_from_images(images, aspect="16:9"):
         "pages": len(images),
         "aspect": aspect,
     }
-
-
-# Vercel이 api/*.py를 전부 엔드포인트로 취급하므로,
-# 이 모듈 직접 호출 시 404 안내를 반환한다.
-class handler(BaseHTTPRequestHandler):
-    def _send(self, code, obj):
-        import json
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        self._send(404, {"ok": False, "error": "이 주소는 직접 호출할 수 없어요."})
-
-    def do_POST(self):
-        self._send(404, {"ok": False, "error": "이 주소는 직접 호출할 수 없어요."})

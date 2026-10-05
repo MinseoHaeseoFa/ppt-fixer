@@ -25,26 +25,27 @@ Gemini API 키는 사용자 브라우저에만 저장 (서버로 전송 안 됨)
 ## 구조
 
 ```
-index.html          # 프론트엔드 (단일 파일)
-api/
-  engine.py         # 변환 엔진 (진단·고속변환·JSON조립)
-  convert.py        # POST /api/convert — PDF → PPTX
-  build.py          # POST /api/build  — slides JSON → PPTX
+index.html          # 프론트엔드 (단일 파일, Flask가 서빙)
+app.py              # Flask 단일 앱 (Vercel entrypoint: app:app)
+engine.py           # 변환 엔진 (진단·고속변환·JSON조립·이미지담기)
+pyproject.toml      # 의존성 + [tool.vercel] entrypoint 선언
+vercel.json         # maxDuration 60초, tests 제외
 requirements.txt
-tests/              # 로컬 검증 스크립트
+tests/              # test_engine.py (엔진) + test_app.py (HTTP end-to-end)
 ```
 
 ## 배포 (Vercel)
 
-1. 이 저장소를 Vercel에 Import (Python 런타임 자동 감지)
+1. 이 저장소를 Vercel에 Import (Flask 프리셋 자동 감지)
 2. 환경변수 불필요 (Gemini 키는 사용자 브라우저에서 입력)
-3. `requirements.txt`의 의존성이 자동 설치됨
+3. `pyproject.toml`의 의존성이 자동 설치됨
 
 ## 로컬 테스트
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python tests/test_engine.py
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt flask
+.venv/bin/python tests/test_engine.py   # 변환 엔진 검증
+.venv/bin/python tests/test_app.py       # HTTP 계층 end-to-end 검증
 ```
 
 ## API

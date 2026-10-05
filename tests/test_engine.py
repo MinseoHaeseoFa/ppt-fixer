@@ -4,7 +4,7 @@ import os
 import sys
 import zipfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "api"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pymupdf
 from PIL import Image, ImageDraw
@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 import engine
 
 HERE = os.path.dirname(__file__)
-FONT = os.path.join(HERE, "NotoSansKR.ttf")
+FONT = os.path.join(HERE, "NotoSansKR-sub.ttf")
 EAFONT = "맑은 고딕"
 
 

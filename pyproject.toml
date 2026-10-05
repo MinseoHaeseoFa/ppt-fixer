@@ -1,0 +1,13 @@
+[project]
+name = "ppt-fixer"
+version = "0.2.0"
+requires-python = ">=3.12"
+dependencies = [
+  "flask",
+  "pymupdf",
+  "python-pptx",
+  "Pillow",
+]
+
+[tool.vercel]
+entrypoint = "app:app"

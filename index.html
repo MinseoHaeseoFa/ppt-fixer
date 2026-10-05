@@ -99,7 +99,7 @@
     <h2><span class="n">1</span> PDF 파일 올리기</h2>
     <div id="dropzone">
       <div class="big">📄</div>
-      <p><b>여기에 PDF·이미지를 끌어다 놓거나 클릭하세요</b><br>PDF 4MB 이하 · 이미지(JPG·PNG·WebP) 각 10MB 이하, 최대 20장</p>
+      <p><b>여기에 PDF·이미지를 끌어다 놓거나 클릭하세요</b><br>PDF 3MB 이하 · 이미지(JPG·PNG·WebP) 각 10MB 이하, 최대 20장</p>
       <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple style="display:none">
     </div>
     <div id="fileInfo"><div class="fn"></div><div class="meta"></div></div>
@@ -153,7 +153,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const state = { buf:null, name:"", images:[], kind:null, font:"malgun", aspect:"16:9", pptxB64:"", outName:"" };
-const MAX_PDF_BYTES = 4 * 1024 * 1024;
+const MAX_PDF_BYTES = 3 * 1024 * 1024;
 const MAX_IMG_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGES = 20;
 
@@ -238,7 +238,7 @@ async function handleFiles(fileList){
   if(pdfs.length){
     const file = pdfs[0];
     if(file.size > MAX_PDF_BYTES){
-      showError("파일이 너무 커요 (" + (file.size/1048576).toFixed(1) + "MB). 4MB 이하로 줄여서 올려주세요.");
+      showError("파일이 너무 커요 (" + (file.size/1048576).toFixed(1) + "MB). 3MB 이하로 줄여서 올려주세요.");
       return;
     }
     const buf = await file.arrayBuffer();

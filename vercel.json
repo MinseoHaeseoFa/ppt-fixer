@@ -1,0 +1,1 @@
+{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"app.py":{"excludeFiles":"{tests/**,**/*.test.py}","maxDuration":60}}}
