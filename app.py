@@ -136,6 +136,17 @@ def build():
                             sources.append(base64.b64decode(b64))
                         except Exception:
                             sources.append(None)
+                elif isinstance(images, dict) and images:
+                    # 새 프론트엔드: {"페이지번호": jpeg_b64}
+                    for i, s in enumerate(slides):
+                        pno = s.get("page", i + 1) if isinstance(s, dict) else i + 1
+                        b64 = images.get(str(pno))
+                        if b64 is None:
+                            b64 = images.get(pno)
+                        try:
+                            sources.append(base64.b64decode(b64) if b64 else None)
+                        except Exception:
+                            sources.append(None)
                 pptx, report = engine.build_from_layout(slides, sources, font, aspect)
             else:
                 pptx, report = engine.build_from_json(slides, font, aspect)

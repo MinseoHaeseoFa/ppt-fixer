@@ -23,7 +23,7 @@ def b64(path):
 def test_index():
     r = client.get("/")
     assert r.status_code == 200, r.status_code
-    assert "오타잡이" in r.get_data(as_text=True)
+    assert "PDF to Editable PowerPoint" in r.get_data(as_text=True)
     assert "text/html" in r.content_type
     print("[OK] GET / → index.html")
 
@@ -105,10 +105,10 @@ def test_build_layout():
     # 레이아웃 모드: elements + pdf_base64 → 이미지 요소 크롭 임베드
     r = client.post("/api/build", json={
         "slides": [{"page": 1, "elements": [
-            {"type": "text", "x": 100, "y": 80, "w": 800, "h": 120,
+            {"type": "text", "x": 10, "y": 8, "w": 80, "h": 12,
              "text": "레이아웃 제목", "font_size": 36, "bold": True,
              "color": "1A1A2E", "align": "center"},
-            {"type": "image", "x": 90, "y": 140, "w": 400, "h": 220},
+            {"type": "image", "x": 9, "y": 14, "w": 40, "h": 22},
         ]}],
         "pdf_base64": b64(SAMPLE_PDF), "font": "malgun", "aspect": "16:9"})
     d = r.get_json()

@@ -188,19 +188,19 @@ def main():
     src.save(sbuf, format="PNG")
     layout_slides = [
         {"page": 1, "elements": [
-            {"type": "text", "x": 120, "y": 60, "w": 760, "h": 110,
+            {"type": "text", "x": 12, "y": 6, "w": 76, "h": 11,
              "text": "오타 수정 테스트", "font_size": 40, "bold": True,
              "color": "1A1A2E", "align": "center"},
-            {"type": "text", "x": 100, "y": 220, "w": 440, "h": 120,
+            {"type": "text", "x": 10, "y": 22, "w": 44, "h": 12,
              "text": "NotebookLM 슬라이드", "font_size": 20},
-            {"type": "shape", "shape": "rect", "x": 80, "y": 200,
-             "w": 840, "h": 300, "fill": "F5F5F5"},
-            {"type": "image", "x": 600, "y": 220, "w": 280, "h": 260},
+            {"type": "shape", "shape": "rect", "x": 8, "y": 20,
+             "w": 84, "h": 30, "fill": "F5F5F5"},
+            {"type": "image", "x": 60, "y": 22, "w": 28, "h": 26},
             {"type": "bogus", "x": 0, "y": 0, "w": 10, "h": 10},
             {"type": "text", "x": 0, "y": 0, "w": 0, "h": 0, "text": "무시됨"},
         ]},
         {"page": 2, "notes": "발표 노트", "elements": [
-            {"type": "text", "x": 100, "y": 100, "w": 800, "h": 100,
+            {"type": "text", "x": 10, "y": 10, "w": 80, "h": 10,
              "text": "둘째 장", "font_size": 32},
         ]},
     ]

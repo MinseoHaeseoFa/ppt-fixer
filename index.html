@@ -1,541 +1,549 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>오타잡이 PPT — NotebookLM 슬라이드 오타, 직접 고치기</title>
+<title>PDF to Editable PowerPoint</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root{
-    --bg:#0a0e1f; --panel:#141b3a; --panel2:#1a2350; --line:#26335f;
-    --txt:#eef1ff; --muted:#9aa3c7; --accent:#ffd166; --accent2:#ffb703;
-    --good:#34d399; --bad:#f87171; --blue:#60a5fa;
+    --bg:#f6f8fc; --card:#ffffff; --line:#e6eaf3; --txt:#111827; --muted:#6b7280;
+    --primary:#4f46e5; --primary-d:#4338ca; --danger:#ef4444; --ok:#10b981;
+    --bar:#1f2937;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  body{background:radial-gradient(1200px 600px at 50% -10%, #16205a 0%, var(--bg) 60%) fixed, var(--bg);
-       color:var(--txt); font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  body{background:var(--bg); color:var(--txt);
+       font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR","Malgun Gothic",sans-serif;
        min-height:100vh;}
-  .wrap{max-width:760px; margin:0 auto; padding:36px 20px 60px;}
-  header{text-align:center; margin-bottom:28px;}
-  header .logo{font-size:15px; font-weight:800; color:var(--accent); letter-spacing:2px; margin-bottom:10px;}
-  header h1{font-size:30px; font-weight:800; letter-spacing:-1px; line-height:1.35;}
-  header h1 .hl{background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
-  header p{color:var(--muted); font-size:14.5px; margin-top:10px; line-height:1.7;}
-  .card{background:rgba(20,27,58,.75); border:1px solid var(--line); border-radius:18px; padding:22px; margin-bottom:16px; backdrop-filter:blur(6px);}
-  .card h2{font-size:15px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
-  .card h2 .n{background:var(--accent); color:#1a1a1a; font-size:12px; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:800;}
-  #dropzone{border:2px dashed var(--line); border-radius:14px; padding:44px 20px; text-align:center; cursor:pointer; transition:.2s; background:rgba(255,255,255,.02);}
-  #dropzone:hover, #dropzone.over{border-color:var(--accent); background:rgba(255,209,102,.06);}
-  #dropzone .big{font-size:42px; margin-bottom:10px;}
-  #dropzone p{font-size:14.5px; color:var(--muted); line-height:1.7;}
-  #dropzone p b{color:var(--txt);}
-  #fileInfo{display:none; margin-top:14px; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px 16px; font-size:14px;}
-  #fileInfo .fn{font-weight:700; margin-bottom:4px; word-break:break-all;}
-  #fileInfo .meta{color:var(--muted); font-size:12.5px;}
-  .opt-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
-  .opt-row:last-child{margin-bottom:0;}
-  .opt-label{font-size:13px; color:var(--muted); width:100%; margin-bottom:2px;}
-  .opt{flex:1; min-width:120px; background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:12px; padding:12px; font-size:14px; cursor:pointer; font-family:inherit; text-align:center; transition:.15s;}
-  .opt small{display:block; font-size:11px; margin-top:3px; opacity:.7;}
-  .opt.on{border-color:var(--accent); color:var(--txt); background:rgba(255,209,102,.1); font-weight:700;}
-  #convertBtn{width:100%; font-size:17px; font-weight:800; color:#1a1a1a; background:linear-gradient(135deg,var(--accent),var(--accent2));
-              border:none; border-radius:14px; padding:16px; cursor:pointer; font-family:inherit; margin-bottom:16px;}
-  #convertBtn:disabled{opacity:.4; cursor:not-allowed;}
-  #convertBtn:not(:disabled):hover{filter:brightness(1.07);}
-  #steps{display:none; list-style:none; font-size:13.5px;}
-  #steps li{padding:8px 0; color:var(--muted); display:flex; gap:10px; align-items:center;}
-  #steps li.done{color:var(--good);}
-  #steps li.active{color:var(--txt);}
-  #steps li.active .spin{width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:sp 0.8s linear infinite; flex-shrink:0;}
+  .screen{max-width:680px; margin:0 auto; padding:60px 20px 48px;}
+  .screen.wide{max-width:1280px; padding-top:36px;}
+  [hidden]{display:none !important;}
+
+  /* ---------- upload ---------- */
+  .hero{text-align:center; margin-bottom:28px;}
+  .wand{width:56px; height:56px; margin:0 auto 18px; border-radius:16px;
+        background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex;
+        align-items:center; justify-content:center; font-size:28px;
+        box-shadow:0 8px 20px rgba(99,102,241,.35);}
+  .hero h1{font-size:30px; font-weight:800; letter-spacing:-.5px; margin-bottom:12px;}
+  .hero .sub{color:var(--muted); font-size:14.5px; line-height:1.7; max-width:560px; margin:0 auto;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+        box-shadow:0 2px 10px rgba(17,24,39,.05);}
+  #dropzone{padding:46px 24px; text-align:center; cursor:pointer; border:2px dashed #c7d2fe;
+            background:#f8faff; transition:.15s; margin-bottom:14px;}
+  #dropzone:hover,#dropzone.over{border-color:var(--primary); background:#eef2ff;}
+  #dropzone .cloud{width:52px; height:52px; margin:0 auto 14px; border-radius:50%;
+                   background:#eef2ff; display:flex; align-items:center; justify-content:center;
+                   font-size:24px; color:var(--primary);}
+  #dropzone .t1{font-weight:700; font-size:15px; margin-bottom:6px;}
+  #dropzone .t2{color:var(--muted); font-size:13px;}
+  .filecard{display:flex; align-items:center; justify-content:space-between; gap:14px;
+            padding:16px 18px; margin-bottom:14px;}
+  .finfo{display:flex; align-items:center; gap:12px; min-width:0;}
+  .pdfbadge{background:#ef4444; color:#fff; font-size:11px; font-weight:800; border-radius:6px;
+            padding:6px 8px; flex-shrink:0;}
+  .finfo .fn{font-weight:700; font-size:14px; word-break:break-all;}
+  .finfo .fs{color:var(--muted); font-size:12.5px;}
+  .btn-primary{background:var(--primary); color:#fff; border:none; border-radius:10px;
+               font-weight:700; font-size:14.5px; padding:13px 22px; cursor:pointer;
+               font-family:inherit; white-space:nowrap;}
+  .btn-primary:hover{background:var(--primary-d);}
+  .btn-primary:disabled{opacity:.55; cursor:wait;}
+  .keyrow{display:flex; gap:8px; align-items:center; margin-bottom:26px;}
+  .keyrow input{flex:1; border:1px solid var(--line); border-radius:10px; padding:11px 13px;
+                font-size:13.5px; font-family:inherit; background:#fff;}
+  .keyrow a{font-size:13px; color:var(--primary); white-space:nowrap;}
+  .keynote{font-size:12px; color:var(--muted); text-align:center; margin:-18px 0 26px;}
+  .powered{text-align:center; color:#9ca3af; font-size:12.5px;}
+  #error{display:none; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c;
+         border-radius:12px; padding:13px 16px; font-size:13.5px; line-height:1.6; margin-bottom:14px;}
+
+  /* ---------- converting modal ---------- */
+  .modal{max-width:460px; margin:40px auto; padding:26px 28px;}
+  .modal h3{font-size:16px; font-weight:800; margin-bottom:20px;}
+  #steps{list-style:none; margin-bottom:22px;}
+  #steps li{display:flex; align-items:center; gap:12px; padding:9px 0; color:#9ca3af; font-size:14px;}
+  #steps li.active{color:var(--txt); font-weight:600;}
+  #steps li.done{color:var(--txt);}
+  #steps .dot{width:20px; height:20px; border-radius:50%; border:2px solid #d1d5db; flex-shrink:0;
+              display:inline-flex; align-items:center; justify-content:center; font-size:12px;}
+  #steps li.active .dot{border-color:var(--primary); border-top-color:transparent;
+                        animation:sp .7s linear infinite;}
+  #steps li.done .dot{border-color:var(--ok); background:var(--ok); color:#fff;}
+  #steps li.done .dot::after{content:"✓";}
   @keyframes sp{to{transform:rotate(360deg);}}
-  #result{display:none; text-align:center;}
-  #result .ok{font-size:44px; margin-bottom:8px;}
-  #result h3{font-size:18px; margin-bottom:6px;}
-  #result .rep{font-size:13px; color:var(--muted); line-height:1.8; margin-bottom:16px;}
-  #result .rep b{color:var(--good);}
-  #dlBtn{display:inline-block; font-size:16px; font-weight:800; color:#06281c; background:linear-gradient(135deg,#34d399,#10b981);
-         border-radius:12px; padding:14px 34px; text-decoration:none; cursor:pointer; border:none; font-family:inherit;}
-  #precise{display:none;}
-  #precise .desc{font-size:13.5px; color:var(--muted); line-height:1.8; margin-bottom:12px;}
-  #precise .desc b{color:var(--accent);}
-  #apiKey{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--txt);
-          padding:12px 14px; font-size:14px; font-family:inherit; margin-bottom:10px;}
-  #apiKey::placeholder{color:var(--muted);}
-  #preciseBtn{width:100%; font-size:15px; font-weight:800; color:#1a1a1a; background:linear-gradient(135deg,var(--blue),#3b82f6);
-              border:none; border-radius:12px; padding:14px; cursor:pointer; font-family:inherit;}
-  #preciseBtn:disabled{opacity:.5; cursor:wait;}
-  .keynote{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.7;}
-  .keynote a{color:var(--blue);}
-  #error{display:none; background:#3a1420; border:1px solid #7a2b3a; color:#ffc9c9; border-radius:12px; padding:14px 16px; font-size:14px; line-height:1.7; margin-bottom:16px;}
-  .howto{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;}
-  .howto div{background:rgba(20,27,58,.6); border:1px solid var(--line); border-radius:14px; padding:16px; font-size:13px; color:var(--muted); line-height:1.7;}
-  .howto b{color:var(--txt); display:block; margin-bottom:6px; font-size:13.5px;}
-  .howto .e{font-size:24px; display:block; margin-bottom:8px;}
-  footer{text-align:center; color:var(--muted); font-size:12.5px; line-height:2; margin-top:8px;}
-  footer b{color:var(--good);}
-  @media (max-width:640px){
-    header h1{font-size:24px;}
-    .howto{grid-template-columns:1fr;}
-    .wrap{padding:24px 14px 48px;}
+  .prog-row{display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); margin-bottom:8px;}
+  .bar{height:8px; background:#eef1f7; border-radius:99px; overflow:hidden;}
+  .bar>div{height:100%; width:0%; background:var(--primary); border-radius:99px; transition:width .25s;}
+
+  /* ---------- preview & edit ---------- */
+  .edit-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px;}
+  .edit-head h2{font-size:20px; font-weight:800; margin-bottom:4px;}
+  .edit-head .muted{color:var(--muted); font-size:13px;}
+  .edit-grid{display:grid; grid-template-columns:130px 1fr 300px; gap:16px; align-items:start;}
+  .thumbs{display:flex; flex-direction:column; gap:10px; max-height:72vh; overflow-y:auto; padding-right:2px;}
+  .thumb{border:2px solid var(--line); border-radius:8px; overflow:hidden; cursor:pointer; position:relative; background:#fff;}
+  .thumb img{width:100%; display:block;}
+  .thumb .pg{position:absolute; right:4px; bottom:4px; background:rgba(17,24,39,.75); color:#fff;
+             font-size:10.5px; border-radius:5px; padding:2px 6px;}
+  .thumb.on{border-color:var(--primary); box-shadow:0 0 0 2px rgba(79,70,229,.25);}
+  .viewer{min-width:0;}
+  .viewer-bar{background:var(--bar); color:#fff; border-radius:10px 10px 0 0; padding:10px 16px;
+              display:flex; justify-content:space-between; font-size:13px; font-weight:600;}
+  .slide-wrap{position:relative; background:#fff; border:1px solid var(--line); border-top:none;
+              border-radius:0 0 10px 10px; overflow:hidden;}
+  .slide-wrap img{width:100%; display:block;}
+  #overlays{position:absolute; inset:0;}
+  .ovl{position:absolute; border:2px dashed rgba(239,68,68,.85); cursor:pointer; border-radius:2px;}
+  .ovl:hover{background:rgba(239,68,68,.08);}
+  .ovl.sel{border:2px solid var(--primary); background:rgba(79,70,229,.08);}
+  .text-editor{margin-top:10px;}
+  .text-editor textarea{width:100%; border:2px solid var(--primary); border-radius:10px; padding:12px 14px;
+                       font-size:14px; font-family:inherit; resize:vertical; min-height:64px;}
+  .panel{background:#fff; border:1px solid var(--line); border-radius:12px; max-height:72vh;
+         display:flex; flex-direction:column; overflow:hidden;}
+  .panel-head{display:flex; justify-content:space-between; align-items:center; padding:14px 16px;
+              border-bottom:1px solid var(--line); font-weight:800; font-size:14.5px;}
+  .badge{background:#eef2ff; color:var(--primary); font-size:12px; font-weight:800; border-radius:99px;
+         padding:2px 10px;}
+  .el-list{overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px;}
+  .el{border:1px solid var(--line); border-radius:10px; padding:12px; background:#fbfcfe;}
+  .el.sel{border-color:var(--primary); box-shadow:0 0 0 2px rgba(79,70,229,.18);}
+  .el-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .el-type{font-size:12px; font-weight:800; letter-spacing:.4px; color:#374151;}
+  .trash{background:none; border:none; cursor:pointer; font-size:14px; opacity:.55;}
+  .trash:hover{opacity:1;}
+  .el-text{width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+           font-size:13px; font-family:inherit; resize:vertical; min-height:52px; background:#fff;}
+  .el-meta{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; font-size:12px; color:var(--muted);}
+  .el-meta label{display:block; font-size:11px; margin-bottom:3px;}
+  .el-meta .val{font-weight:700; color:var(--txt); font-size:12.5px;}
+  .el-meta input[type=number]{width:100%; border:1px solid var(--line); border-radius:7px; padding:6px 8px; font-size:12.5px;}
+  .el-meta input[type=color]{width:100%; height:32px; border:1px solid var(--line); border-radius:7px; padding:2px; background:#fff;}
+  .swatch{height:26px; border-radius:7px; border:1px solid var(--line);}
+
+  /* ---------- complete ---------- */
+  .done-card{max-width:520px; margin:40px auto; padding:44px 30px; text-align:center;}
+  .dl-icon{width:60px; height:60px; margin:0 auto 18px; border-radius:50%; background:#ecfdf5;
+           display:flex; align-items:center; justify-content:center; font-size:26px; color:var(--ok);}
+  .done-card h2{font-size:20px; font-weight:800; margin-bottom:10px;}
+  .done-card .muted{color:var(--muted); font-size:14px; margin-bottom:20px;}
+  .btn-text{background:none; border:none; color:var(--primary); font-size:14px; font-weight:700;
+            cursor:pointer; font-family:inherit;}
+  .btn-text:hover{text-decoration:underline;}
+
+  @media (max-width:900px){
+    .edit-grid{grid-template-columns:1fr;}
+    .thumbs{flex-direction:row; max-height:none;}
+    .thumb{width:110px; flex-shrink:0;}
+    .panel{max-height:none;}
   }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="logo">오타잡이 PPT</div>
-    <h1>NotebookLM 슬라이드,<br><span class="hl">오타 직접</span> 고치는 PPT로</h1>
-    <p>PDF·이미지를 올리면 텍스트·이미지·레이아웃을 그대로 살려<br>진짜 편집되는 PPTX 파일로 변환해드려요. 오타는 파워포인트에서 직접 고치세요.</p>
-  </header>
+<div id="app">
 
-  <div class="howto">
-    <div><span class="e">📄</span><b>1. 파일 올리기</b>NotebookLM 슬라이드 PDF나 이미지(JPG·PNG·WebP)를 드래그해서 놓으세요.</div>
-    <div><span class="e">🔍</span><b>2. 자동 분석</b>슬라이드 구조를 분석해 텍스트·그림의 위치까지 살리는 방식을 골라요.</div>
-    <div><span class="e">⬇️</span><b>3. PPTX 받기</b>한글 서체가 명시된 편집 가능한 파워포인트 파일로 저장됩니다.</div>
-  </div>
-
-  <div id="error"></div>
-
-  <div class="card">
-    <h2><span class="n">1</span> PDF 파일 올리기</h2>
-    <div id="dropzone">
-      <div class="big">📄</div>
-      <p><b>여기에 PDF·이미지를 끌어다 놓거나 클릭하세요</b><br>PDF 3MB 이하 · 이미지(JPG·PNG·WebP) 각 10MB 이하, 최대 20장</p>
-      <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple style="display:none">
+  <!-- upload -->
+  <section id="screen-upload" class="screen">
+    <div class="hero">
+      <div class="wand">🪄</div>
+      <h1>PDF to Editable PowerPoint</h1>
+      <p class="sub">Convert your PDF slides back into editable PPTX format. AI separates text and shapes so you can edit the design, not just the background.</p>
     </div>
-    <div id="fileInfo"><div class="fn"></div><div class="meta"></div></div>
-  </div>
-
-  <div class="card">
-    <h2><span class="n">2</span> 변환 옵션</h2>
-    <div class="opt-row">
-      <div class="opt-label">한글 폰트 테마</div>
-      <button class="opt on" data-font="malgun">맑은 고딕<small>윈도우 기본 · 가장 안전</small></button>
-      <button class="opt" data-font="noto">Noto Sans KR<small>구글 본고딕</small></button>
-      <button class="opt" data-font="pretendard">Pretendard<small>요즘 대세</small></button>
+    <div id="error"></div>
+    <div class="card" id="dropzone">
+      <div class="cloud">⤴</div>
+      <div class="t1">Click to upload or drag &amp; drop</div>
+      <div class="t2">PDF files only (max 20MB)</div>
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" hidden>
     </div>
-    <div class="opt-row">
-      <div class="opt-label">슬라이드 화면비</div>
-      <button class="opt on" data-aspect="16:9">16 : 9<small>와이드 · 기본</small></button>
-      <button class="opt" data-aspect="4:3">4 : 3<small>구형 프로젝터용</small></button>
+    <div class="card filecard" id="fileCard" hidden>
+      <div class="finfo">
+        <span class="pdfbadge">PDF</span>
+        <div><div class="fn" id="fileName"></div><div class="fs" id="fileSize"></div></div>
+      </div>
+      <button class="btn-primary" id="convertBtn">Convert to PPTX</button>
     </div>
-  </div>
+    <div class="keyrow">
+      <input type="password" id="apiKey" placeholder="Gemini API key" autocomplete="off">
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free key</a>
+    </div>
+    <div class="keynote">Your API key is stored only in this browser and sent directly to Google.</div>
+    <div class="powered">Powered by Gemini &amp; Python</div>
+  </section>
 
-  <button id="convertBtn" disabled>PDF를 선택해주세요</button>
+  <!-- converting -->
+  <section id="screen-converting" class="screen" hidden>
+    <div class="card modal">
+      <h3>Converting Presentation</h3>
+      <ul id="steps">
+        <li data-s="parse"><span class="dot"></span>PDF Parsing</li>
+        <li data-s="analyze"><span class="dot"></span>AI Layout Analysis</li>
+        <li data-s="generate"><span class="dot"></span>Generating PPTX</li>
+      </ul>
+      <div class="prog-row"><span>Overall Progress</span><span id="progPct">0%</span></div>
+      <div class="bar"><div id="progFill"></div></div>
+    </div>
+    <div class="powered">Powered by Gemini &amp; Python</div>
+  </section>
 
-  <div class="card" id="progressCard" style="display:none">
-    <h2><span class="n">3</span> 변환 중</h2>
-    <ul id="steps"></ul>
-  </div>
+  <!-- preview & edit -->
+  <section id="screen-edit" class="screen wide" hidden>
+    <div class="edit-head">
+      <div><h2>Preview &amp; Edit Slides</h2><p class="muted">Select elements on the image or list to edit</p></div>
+      <button class="btn-primary" id="generateBtn">⬇ Generate PPTX</button>
+    </div>
+    <div class="edit-grid">
+      <div class="thumbs" id="thumbs"></div>
+      <div class="viewer">
+        <div class="viewer-bar"><span>Original Slide - Click elements to select</span><span id="pageInd">1 / 1</span></div>
+        <div class="slide-wrap">
+          <img id="slideImg" alt="slide">
+          <div id="overlays"></div>
+        </div>
+        <div class="text-editor" id="textEditor" hidden>
+          <textarea id="textEdit" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span>Elements</span><span class="badge" id="elCount">0</span></div>
+        <div class="el-list" id="elList"></div>
+      </div>
+    </div>
+  </section>
 
-  <div class="card" id="result">
-    <div class="ok">🎉</div>
-    <h3>변환 완료!</h3>
-    <div class="rep"></div>
-    <button id="dlBtn">PPTX 다운로드</button>
-  </div>
+  <!-- complete -->
+  <section id="screen-done" class="screen" hidden>
+    <div class="card done-card">
+      <div class="dl-icon">⬇</div>
+      <h2>Conversion Complete!</h2>
+      <p class="muted">Your file "Converted_Presentation.pptx" has been downloaded.</p>
+      <button class="btn-text" id="againBtn">⟳ Convert another file</button>
+    </div>
+    <div class="powered">Powered by Gemini &amp; Python</div>
+  </section>
 
-  <div class="card" id="precise">
-    <h2><span class="n">✦</span> 정밀 모드 (Gemini)</h2>
-    <div class="desc" id="preciseDesc"></div>
-    <button id="quickBtn" style="display:none; width:100%; font-size:15px; font-weight:800; color:#06281c; background:linear-gradient(135deg,#34d399,#10b981); border:none; border-radius:12px; padding:14px; cursor:pointer; font-family:inherit; margin-bottom:10px;">이미지 그대로 담기 (빠름 · API 키 불필요)</button>
-    <input type="password" id="apiKey" placeholder="Gemini API 키를 입력하세요 (브라우저에만 저장됨)" autocomplete="off">
-    <button id="preciseBtn">정밀 변환 시작</button>
-    <div class="keynote">API 키는 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 무료로 발급받을 수 있어요. 키는 이 브라우저에만 저장되고 서버로 전송되지 않아요.</div>
-  </div>
-
-  <footer>
-    <b>🔒 개인정보 보호:</b> 업로드한 PDF는 변환 목적으로만 사용되고 저장되지 않아요.<br>
-    텍스트 추출이 가능한 PDF는 AI 서버를 거치지 않고 <b>수 초 만에</b> 변환돼요.
-  </footer>
 </div>
 
 <script>
 "use strict";
-const $ = id => document.getElementById(id);
-const state = { buf:null, name:"", images:[], kind:null, font:"malgun", aspect:"16:9", pptxB64:"", outName:"" };
-const MAX_PDF_BYTES = 3 * 1024 * 1024;
-const MAX_IMG_BYTES = 10 * 1024 * 1024;
-const MAX_IMAGES = 20;
-
-function detectImageMime(buf){
-  const b = new Uint8Array(buf);
-  if(b[0]===0xFF && b[1]===0xD8 && b[2]===0xFF) return "image/jpeg";
-  if(b[0]===0x89 && b[1]===0x50 && b[2]===0x4E && b[3]===0x47) return "image/png";
-  if(b[0]===0x52 && b[1]===0x49 && b[2]===0x46 && b[3]===0x46 &&
-     b[8]===0x57 && b[9]===0x45 && b[10]===0x42 && b[11]===0x50) return "image/webp";
-  return null;
+/* pdf.js for client-side PDF rendering (like the video's pdfjs-dist pipeline) */
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
+const $ = id => document.getElementById(id);
+const S = {
+  file:null, pages:[], slides:[], cur:0, sel:-1,
+  key: localStorage.getItem("gemini_key") || ""
+};
+const GEMINI_MODEL = "gemini-2.5-flash";
+const MAX_PDF = 20 * 1024 * 1024;
+const MAX_PAGES = 80;
+const RENDER_W = 1600;
+
+const PROMPT = [
+  "This image is one presentation slide. Analyze its elements (text, shapes, pictures) and their positions.",
+  "Output ONLY the JSON array below. No explanations, no code fences.",
+  "",
+  '[{"page":1,"elements":[',
+  '{"type":"text","x":12,"y":6,"w":76,"h":11,"text":"title text","font_size":40,"bold":true,"color":"1A1A2E","align":"center"},',
+  '{"type":"shape","shape":"rect","x":8,"y":20,"w":84,"h":30,"fill":"F5F5F5"},',
+  '{"type":"image","x":60,"y":22,"w":28,"h":26}',
+  "]}]",
+  "",
+  "Rules:",
+  "1. Coordinates are percentages (0-100) of the image. Make text boxes tight around the text.",
+  "2. List background shapes and pictures first, then the text on top of them.",
+  "3. Estimate font_size in points (titles 28-44, body 14-24).",
+  "4. Keep every character exactly as shown, including Korean. Never fix typos.",
+  "5. For pictures, photos and charts, output only type \"image\" with its position — do not invent text."
+].join("\n");
+
+function show(id){
+  ["screen-upload","screen-converting","screen-edit","screen-done"]
+    .forEach(s => $(s).hidden = (s !== id));
+  window.scrollTo(0,0);
+}
 function showError(msg){
   const e = $("error");
-  e.style.display = "block";
-  e.innerHTML = "⚠️ " + msg;
+  e.style.display = "block"; e.textContent = msg;
   e.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 function hideError(){ $("error").style.display = "none"; }
 
-function bufToB64(buf){
-  const bytes = new Uint8Array(buf);
-  let s = "";
-  for(let i=0; i<bytes.length; i+=0x8000){
-    s += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000));
-  }
-  return btoa(s);
-}
-function downloadB64(b64, filename){
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
-  const blob = new Blob([bytes], {type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 8000);
-}
-
-// 옵션 버튼
-document.querySelectorAll("[data-font]").forEach(b=>b.addEventListener("click", ()=>{
-  document.querySelectorAll("[data-font]").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); state.font = b.dataset.font;
-}));
-document.querySelectorAll("[data-aspect]").forEach(b=>b.addEventListener("click", ()=>{
-  document.querySelectorAll("[data-aspect]").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); state.aspect = b.dataset.aspect;
-}));
-
-// 파일 선택
+/* ---------- upload ---------- */
 const dz = $("dropzone"), fi = $("fileInput");
 dz.addEventListener("click", ()=>fi.click());
 ["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.add("over");}));
 ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.remove("over");}));
-dz.addEventListener("drop", e=>{
-  if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
-});
-fi.addEventListener("change", ()=>{ if(fi.files.length) handleFiles(fi.files); });
+dz.addEventListener("drop", e=>{ if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+fi.addEventListener("change", ()=>{ if(fi.files.length) handleFile(fi.files[0]); });
+if(S.key) $("apiKey").value = S.key;
 
-async function handleFiles(fileList){
+function handleFile(f){
   hideError();
-  $("result").style.display = "none";
-  $("precise").style.display = "none";
-  state.buf = null; state.images = []; state.kind = null;
-  const files = Array.from(fileList);
-  const pdfs = [], images = [];
-  for(const f of files){
-    if(/\.pdf$/i.test(f.name)) pdfs.push(f);
-    else if(/\.(jpe?g|png|webp)$/i.test(f.name)) images.push(f);
-    else{ showError("지원하지 않는 파일이에요: " + f.name + " (PDF·JPG·PNG·WebP만 가능)"); return; }
+  if(!/\.pdf$/i.test(f.name) && f.type !== "application/pdf"){
+    showError("PDF files only."); return;
   }
-  if(pdfs.length && images.length){
-    showError("PDF와 이미지는 함께 올릴 수 없어요. 따로 올려주세요.");
-    return;
+  if(f.size > MAX_PDF){
+    showError("File is too big (" + (f.size/1048576).toFixed(1) + "MB). Max 20MB."); return;
   }
-  if(pdfs.length > 1){ showError("PDF는 한 번에 하나만 올릴 수 있어요."); return; }
-  if(images.length > MAX_IMAGES){ showError("이미지는 최대 " + MAX_IMAGES + "장까지 올릴 수 있어요."); return; }
-
-  if(pdfs.length){
-    const file = pdfs[0];
-    if(file.size > MAX_PDF_BYTES){
-      showError("파일이 너무 커요 (" + (file.size/1048576).toFixed(1) + "MB). 3MB 이하로 줄여서 올려주세요.");
-      return;
-    }
-    const buf = await file.arrayBuffer();
-    const magic = String.fromCharCode.apply(null, new Uint8Array(buf.slice(0,5)));
-    if(magic !== "%PDF-"){ showError("PDF 파일이 아닌 것 같아요. 파일을 다시 확인해주세요."); return; }
-    state.kind = "pdf"; state.buf = buf; state.name = file.name;
-    showFileInfo("📄 " + file.name, (file.size/1024).toFixed(0) + "KB · 변환 준비 완료");
-  }else{
-    const okImgs = [];
-    for(const f of images){
-      if(f.size > MAX_IMG_BYTES){ showError(f.name + ": 10MB 이하의 이미지만 올려주세요."); return; }
-      const buf = await f.arrayBuffer();
-      const mime = detectImageMime(buf);
-      if(!mime){ showError(f.name + ": 이미지 파일을 읽을 수 없어요. (JPG·PNG·WebP)"); return; }
-      okImgs.push({buf, name:f.name, mime});
-    }
-    state.kind = "image"; state.images = okImgs;
-    state.name = okImgs.length === 1 ? okImgs[0].name : "이미지 " + okImgs.length + "장";
-    const kb = okImgs.reduce((a,x)=>a + x.buf.byteLength, 0) / 1024;
-    showFileInfo("🖼️ " + state.name, kb.toFixed(0) + "KB · " + okImgs.length + "장 → 슬라이드 " + okImgs.length + "장");
-  }
-  const btn = $("convertBtn");
-  btn.disabled = false;
-  btn.textContent = "변환하기 ✨";
+  S.file = f; S.pages = []; S.slides = []; S.cur = 0; S.sel = -1;
+  $("fileName").textContent = f.name;
+  $("fileSize").textContent = (f.size/1048576).toFixed(2) + " MB";
+  $("fileCard").hidden = false;
 }
 
-function showFileInfo(fn, meta){
-  const info = $("fileInfo");
-  info.style.display = "block";
-  info.querySelector(".fn").textContent = fn;
-  info.querySelector(".meta").textContent = meta;
+/* ---------- converting ---------- */
+function setStep(name, st){ // st: active|done|idle
+  const li = document.querySelector('#steps li[data-s="'+name+'"]');
+  li.classList.remove("active","done");
+  if(st !== "idle") li.classList.add(st);
+}
+function setProg(p){
+  p = Math.max(0, Math.min(100, Math.round(p)));
+  $("progFill").style.width = p + "%";
+  $("progPct").textContent = p + "%";
 }
 
-async function handleFile(file){ return handleFiles([file]); }
-
-// 진행 단계 UI
-const STEPS = ["PDF 확인", "서버로 전송", "슬라이드 분석", "PPTX 생성", "완료"];
-function renderSteps(active){
-  const ul = $("steps");
-  ul.innerHTML = STEPS.map((s,i)=>{
-    const cls = i < active ? "done" : (i === active ? "active" : "");
-    const icon = i < active ? "✅" : (i === active ? '<span class="spin"></span>' : "·");
-    return `<li class="${cls}">${icon} ${s}</li>`;
-  }).join("");
-}
-
-async function postJSON(url, data){
-  const res = await fetch(url, {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify(data)
-  });
-  if(!res.ok) throw new Error("서버 응답 오류 (" + res.status + ")");
-  return res.json();
-}
-
-$("convertBtn").addEventListener("click", async ()=>{
-  if(state.kind === "image"){ showPreciseImage(); return; }
-  if(!state.buf) return;
-  hideError();
-  $("result").style.display = "none";
-  $("precise").style.display = "none";
-  $("progressCard").style.display = "block";
-  const btn = $("convertBtn");
-  btn.disabled = true; btn.textContent = "변환 중…";
-  try{
-    renderSteps(0);
-    await new Promise(r=>setTimeout(r,150));
-    renderSteps(1);
-    const b64 = bufToB64(state.buf);
-    renderSteps(2);
-    const data = await postJSON("/api/convert", {
-      pdf_base64: b64, font: state.font, aspect: state.aspect
-    });
-    if(!data.ok) throw new Error(data.error || "변환에 실패했어요.");
-    const rep = data.report;
-    if(rep.mode === "fast"){
-      renderSteps(3);
-      state.pptxB64 = data.pptx_base64;
-      state.outName = state.name.replace(/\.pdf$/i, "") + ".pptx";
-      renderSteps(4);
-      await new Promise(r=>setTimeout(r,300));
-      showResult(rep);
-    }else if(rep.mode === "needs_ocr"){
-      renderSteps(4);
-      showPrecise(rep);
-    }else{
-      throw new Error(rep.message || "변환에 실패했어요.");
-    }
-  }catch(err){
-    if(String(err.message||err).includes("Failed to fetch")){
-      showError("서버에 연결할 수 없어요. 이 앱은 배포된 사이트 주소에서 동작해요. (파일 미리보기에서는 변환이 안 돼요)");
-    }else{
-      showError(err.message || "알 수 없는 오류가 발생했어요.");
-    }
-    $("progressCard").style.display = "none";
-  }finally{
-    btn.disabled = false; btn.textContent = "변환하기 ✨";
+async function renderPages(buf){
+  if(!window.pdfjsLib)
+    throw new Error("PDF engine failed to load. Check your connection and reload the page.");
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  if(pdf.numPages > MAX_PAGES)
+    throw new Error("Too many pages (" + pdf.numPages + "). Max " + MAX_PAGES + ".");
+  const pages = [];
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const v0 = page.getViewport({scale: 1});
+    const scale = RENDER_W / v0.width;
+    const vp = page.getViewport({scale});
+    const cv = document.createElement("canvas");
+    cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+    await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+    pages.push({jpeg: cv.toDataURL("image/jpeg", 0.85), w: cv.width, h: cv.height});
+    setProg(25 * p / pdf.numPages);
   }
-});
-
-function showResult(rep){
-  $("progressCard").style.display = "none";
-  const r = $("result");
-  r.style.display = "block";
-  const fontName = {malgun:"맑은 고딕", noto:"Noto Sans KR", pretendard:"Pretendard"}[state.font] || state.font;
-  let info;
-  if(rep.mode === "image"){
-    info = `<b>${rep.pages}장</b> 담기 완료 · 이미지 그대로 모드<br>화면비 ${rep.aspect || state.aspect}`;
-  }else{
-    info = `<b>${rep.pages}페이지</b> 변환 완료 · ${rep.mode === "precise" ? "정밀" : "고속"} 모드<br>한글 폰트: ${fontName} (깨짐 방지 처리됨) · 화면비 ${rep.aspect || state.aspect}`;
-  }
-  r.querySelector(".rep").innerHTML = info;
-  r.scrollIntoView({behavior:"smooth", block:"nearest"});
-}
-$("dlBtn").addEventListener("click", ()=>{
-  if(state.pptxB64) downloadB64(state.pptxB64, state.outName);
-});
-
-// 이미지용 정밀 카드
-function showPreciseImage(){
-  hideError();
-  $("result").style.display = "none";
-  const p = $("precise");
-  p.style.display = "block";
-  $("quickBtn").style.display = "block";
-  $("preciseDesc").innerHTML =
-    `이미지 <b>${state.images.length}장</b>을 슬라이드로 만들 수 있어요.<br>` +
-    `· <b>이미지 그대로 담기</b>: 각 이미지를 슬라이드 한 장에 (빠름, API 키 불필요 — 텍스트 편집은 안 돼요)<br>` +
-    `· <b>정밀 변환</b>: Gemini가 레이아웃 그대로 읽어 텍스트까지 편집 가능한 슬라이드로 재구성 (API 키 필요)`;
-  const saved = localStorage.getItem("gemini_key");
-  if(saved) $("apiKey").value = saved;
-  p.scrollIntoView({behavior:"smooth", block:"nearest"});
+  return pages;
 }
 
-$("quickBtn").addEventListener("click", async ()=>{
-  hideError();
-  const btn = $("quickBtn");
-  btn.disabled = true; btn.textContent = "담는 중…";
-  $("progressCard").style.display = "block";
-  try{
-    renderSteps(1);
-    const images = state.images.map(x=>({data: bufToB64(x.buf), name: x.name}));
-    renderSteps(2);
-    const data = await postJSON("/api/build", {images, aspect: state.aspect});
-    if(!data.ok) throw new Error(data.error || "생성에 실패했어요.");
-    renderSteps(3);
-    state.pptxB64 = data.pptx_base64;
-    state.outName = "slides-" + state.images.length + "pages.pptx";
-    renderSteps(4);
-    await new Promise(r=>setTimeout(r,300));
-    showResult(data.report);
-  }catch(err){
-    if(String(err.message||err).includes("Failed to fetch")){
-      showError("서버에 연결할 수 없어요. 이 앱은 배포된 사이트 주소에서 동작해요.");
-    }else{
-      showError(err.message || "알 수 없는 오류가 발생했어요.");
-    }
-    $("progressCard").style.display = "none";
-  }finally{
-    btn.disabled = false; btn.textContent = "이미지 그대로 담기 (빠름 · API 키 불필요)";
-  }
-});
-
-const GEMINI_IMG_PROMPT = [
-  "이 이미지는 프레젠테이션 슬라이드 1장입니다. 슬라이드의 요소(텍스트·도형·그림)와",
-  "각 요소의 위치를 분석해서 아래 JSON 형식으로만 출력하세요.",
-  "설명 문장이나 코드펜스는 절대 포함하지 마세요.",
-  "",
-  '[{"page":1,"elements":[' +
-  '{"type":"text","x":120,"y":60,"w":760,"h":110,"text":"제목 텍스트","font_size":40,"bold":true,"color":"1A1A2E","align":"center"},' +
-  '{"type":"shape","shape":"rect","x":80,"y":200,"w":840,"h":300,"fill":"F5F5F5"},' +
-  '{"type":"image","x":600,"y":220,"w":280,"h":260}]}]',
-  "",
-  "규칙:",
-  "1. 좌표는 이미지를 가로·세로 각 1000으로 정규화한 값입니다. 텍스트 박스는 글자에 딱 맞게(tight) 잡으세요.",
-  "2. 배경 도형·그림을 먼저 나열하고, 그 위에 올라가는 텍스트를 나중에 나열하세요.",
-  "3. font_size는 화면상 크기를 보고 포인트 단위로 추정하세요 (제목 28~44, 본문 14~24 참고).",
-  "4. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요. 오타가 있어도 절대 고치지 마세요.",
-  "5. 그림·사진·차트 영역은 텍스트를 만들지 말고 type 'image'로 위치만 표시하세요."
-].join("\n");
-
-async function geminiSlides(mime, b64, key, prompt){
-  const gres = await fetch(
+async function geminiLayout(jpegB64, key){
+  const res = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL +
     ":generateContent?key=" + encodeURIComponent(key),
-    {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        contents:[{parts:[
-          {inline_data:{mime_type: mime, data: b64}},
-          {text: prompt}
-        ]}],
-        generationConfig:{response_mime_type:"application/json", temperature:0.2}
-      })
-    });
-  if(!gres.ok){
-    if(gres.status === 400) throw new Error("API 키가 올바르지 않거나 요청이 잘못됐어요. 키를 확인해주세요.");
-    throw new Error("Gemini 호출 실패 (" + gres.status + "). 잠시 후 다시 시도해주세요.");
+    {method:"POST", headers:{"Content-Type":"application/json"},
+     body: JSON.stringify({
+       contents:[{parts:[
+         {inline_data:{mime_type:"image/jpeg", data: jpegB64}},
+         {text: PROMPT}
+       ]}],
+       generationConfig:{response_mime_type:"application/json", temperature:0.2}
+     })});
+  if(!res.ok){
+    if(res.status === 400) throw new Error("Invalid API key. Please check your Gemini API key.");
+    throw new Error("Gemini request failed (" + res.status + "). Please retry.");
   }
-  const gj = await gres.json();
-  const text = (gj.candidates && gj.candidates[0] && gj.candidates[0].content &&
-                gj.candidates[0].content.parts || []).map(p=>p.text||"").join("");
-  if(!text) throw new Error("Gemini가 빈 응답을 보냈어요. 다시 시도해주세요.");
-  return extractSlidesArray(text);
-}
-function showPrecise(rep){
-  $("progressCard").style.display = "none";
-  const p = $("precise");
-  p.style.display = "block";
-  $("quickBtn").style.display = "none";
-  const d = rep.diagnosis || {};
-  $("preciseDesc").innerHTML =
-    `이 PDF는 텍스트 추출이 어려워(<b>${d.pages||"?"}페이지</b>) 고속 변환이 안 돼요. ` +
-    `Gemini가 텍스트·그림의 위치까지 읽어 <b>원본 레이아웃 그대로</b> 편집 가능한 슬라이드로 재구성하는 <b>정밀 모드</b>로 변환할 수 있어요. (약 30초~1분 소요)`;
-  const saved = localStorage.getItem("gemini_key");
-  if(saved) $("apiKey").value = saved;
-  p.scrollIntoView({behavior:"smooth", block:"nearest"});
-}
-
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_PROMPT = [
-  "이 PDF는 프레젠테이션 슬라이드입니다. 각 페이지를 하나의 슬라이드로 분석해서",
-  "슬라이드의 요소(텍스트·도형·그림)와 각 요소의 위치를 아래 JSON 배열 형식으로만 출력하세요.",
-  "설명 문장이나 코드펜스는 절대 포함하지 마세요.",
-  "",
-  '[{"page":1,"elements":[' +
-  '{"type":"text","x":120,"y":60,"w":760,"h":110,"text":"제목 텍스트","font_size":40,"bold":true,"color":"1A1A2E","align":"center"},' +
-  '{"type":"shape","shape":"rect","x":80,"y":200,"w":840,"h":300,"fill":"F5F5F5"},' +
-  '{"type":"image","x":600,"y":220,"w":280,"h":260}]}]',
-  "",
-  "규칙:",
-  "1. 좌표는 페이지를 가로·세로 각 1000으로 정규화한 값입니다. 텍스트 박스는 글자에 딱 맞게(tight) 잡으세요.",
-  "2. 배경 도형·그림을 먼저 나열하고, 그 위에 올라가는 텍스트를 나중에 나열하세요.",
-  "3. font_size는 화면상 크기를 보고 포인트 단위로 추정하세요 (제목 28~44, 본문 14~24 참고).",
-  "4. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요. 오타가 있어도 절대 고치지 마세요.",
-  "5. 그림·사진·차트 영역은 텍스트를 만들지 말고 type 'image'로 위치만 표시하세요.",
-  "6. 모든 페이지에 대해 page 번호 순서대로 출력하세요."
-].join("\n");
-
-function extractSlidesArray(text){
-  let t = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const j = await res.json();
+  const text = ((j.candidates||[])[0]||{}).content?.parts?.map(p=>p.text||"").join("") || "";
+  if(!text) throw new Error("Gemini returned an empty response. Please retry.");
+  let t = text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
   try{ const v = JSON.parse(t); if(Array.isArray(v)) return v; }catch(e){}
   const m = t.match(/\[[\s\S]*\]/);
   if(m){ const v = JSON.parse(m[0]); if(Array.isArray(v)) return v; }
-  throw new Error("Gemini 응답을 해석하지 못했어요. 다시 시도해주세요.");
+  throw new Error("Could not parse Gemini response. Please retry.");
 }
 
-$("preciseBtn").addEventListener("click", async ()=>{
+$("convertBtn").addEventListener("click", async ()=>{
   hideError();
   const key = $("apiKey").value.trim();
-  if(!key){ showError("Gemini API 키를 입력해주세요."); return; }
+  if(!key){ showError("Please enter your Gemini API key."); $("apiKey").focus(); return; }
   localStorage.setItem("gemini_key", key);
-  const btn = $("preciseBtn");
-  btn.disabled = true;
-  $("progressCard").style.display = "block";
+  S.key = key;
+  if(!S.file) return;
+  show("screen-converting");
+  ["parse","analyze","generate"].forEach(s=>setStep(s,"idle"));
+  setProg(0);
+  const btn = $("convertBtn");
   try{
-    renderSteps(2);
-    let slides, buildPayload;
-    if(state.kind === "image"){
-      slides = [];
-      for(let i=0; i<state.images.length; i++){
-        const img = state.images[i];
-        btn.textContent = `Gemini가 읽는 중… (${i+1}/${state.images.length})`;
-        const s = await geminiSlides(img.mime, bufToB64(img.buf), key, GEMINI_IMG_PROMPT);
-        s.forEach(sl=>{ if(sl && typeof sl === "object") sl.page = i + 1; });
-        slides = slides.concat(s);
-      }
-      if(!slides.length) throw new Error("Gemini가 슬라이드를 추출하지 못했어요.");
-      buildPayload = {
-        slides,
-        images: state.images.map(x=>({data: bufToB64(x.buf), name: x.name})),
-        font: state.font, aspect: state.aspect
-      };
-    }else{
-      btn.textContent = "Gemini가 읽는 중… (30초~1분)";
-      const pdfB64 = bufToB64(state.buf);
-      slides = await geminiSlides("application/pdf", pdfB64, key, GEMINI_PROMPT);
-      buildPayload = {slides, pdf_base64: pdfB64, font: state.font, aspect: state.aspect};
+    // 1. PDF Parsing
+    setStep("parse","active");
+    const buf = await S.file.arrayBuffer();
+    S.pages = await renderPages(buf);
+    setStep("parse","done"); setProg(25);
+    // 2. AI Layout Analysis
+    setStep("analyze","active");
+    S.slides = [];
+    for(let i = 0; i < S.pages.length; i++){
+      const b64 = S.pages[i].jpeg.split(",",2)[1];
+      const arr = await geminiLayout(b64, key);
+      const els = [];
+      arr.forEach(s=>{
+        if(s && typeof s === "object" && Array.isArray(s.elements)) els.push(...s.elements);
+        else if(s && typeof s === "object" && s.type) els.push(s);
+      });
+      S.slides.push({page: i+1, elements: els.filter(e=>e && e.type && +e.w > 0 && +e.h > 0)});
+      setProg(25 + 50 * (i+1) / S.pages.length);
     }
-    renderSteps(3);
-    btn.textContent = "PPTX 만드는 중…";
-    const data = await postJSON("/api/build", buildPayload);
-    if(!data.ok) throw new Error(data.error || "PPT 생성에 실패했어요.");
-    state.pptxB64 = data.pptx_base64;
-    state.outName = state.name.replace(/\.(pdf|jpe?g|png|webp)$/i, "") + ".pptx";
-    if(state.kind === "image") state.outName = "slides-" + state.images.length + "pages.pptx";
-    renderSteps(4);
-    const rep = data.report; rep.aspect = state.aspect;
-    showResult(rep);
+    setStep("analyze","done");
+    // 3. Generating PPTX (assemble)
+    setStep("generate","active"); setProg(90);
+    await new Promise(r=>setTimeout(r, 250));
+    setStep("generate","done"); setProg(100);
+    S.cur = 0; S.sel = -1;
+    renderEdit();
+    show("screen-edit");
   }catch(err){
-    showError(err.message || "정밀 변환 중 오류가 발생했어요.");
-    $("progressCard").style.display = "none";
+    console.error(err);
+    show("screen-upload");
+    showError((err && err.message) || "Conversion failed. Please retry.");
   }finally{
-    btn.disabled = false; btn.textContent = "정밀 변환 시작";
+    btn.disabled = false;
   }
+});
+
+/* ---------- preview & edit ---------- */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+const ICONS = {text:"T", image:"🖼", shape:"◼"};
+
+function renderEdit(){
+  // thumbs
+  const th = $("thumbs"); th.innerHTML = "";
+  S.pages.forEach((p,i)=>{
+    const d = document.createElement("div");
+    d.className = "thumb" + (i===S.cur ? " on" : "");
+    d.innerHTML = '<img src="'+p.jpeg+'" alt="page '+(i+1)+'"><span class="pg">'+(i+1)+'</span>';
+    d.addEventListener("click", ()=>{ S.cur = i; S.sel = -1; renderEdit(); });
+    th.appendChild(d);
+  });
+  $("pageInd").textContent = (S.cur+1) + " / " + S.pages.length;
+  $("slideImg").src = S.pages[S.cur].jpeg;
+  // overlays
+  const ov = $("overlays"); ov.innerHTML = "";
+  const els = S.slides[S.cur].elements;
+  els.forEach((e,i)=>{
+    const d = document.createElement("div");
+    d.className = "ovl" + (i===S.sel ? " sel" : "");
+    d.style.left = e.x+"%"; d.style.top = e.y+"%";
+    d.style.width = e.w+"%"; d.style.height = e.h+"%";
+    d.title = (e.type||"").toUpperCase();
+    d.addEventListener("click", ev=>{ ev.stopPropagation(); selectEl(i); });
+    ov.appendChild(d);
+  });
+  // elements panel
+  const list = $("elList"); list.innerHTML = "";
+  $("elCount").textContent = els.length;
+  els.forEach((e,i)=>{
+    const card = document.createElement("div");
+    card.className = "el" + (i===S.sel ? " sel" : "");
+    const type = (e.type||"text").toLowerCase();
+    let inner = '<div class="el-head"><span class="el-type">'+(ICONS[type]||"•")+" "+
+                esc((e.type||"").toUpperCase())+'</span>'+
+                '<button class="trash" data-i="'+i+'" title="Delete">🗑</button></div>';
+    if(type === "text"){
+      inner += '<textarea class="el-text" data-i="'+i+'" rows="2">'+esc(e.text)+'</textarea>';
+      inner += '<div class="el-meta"><div><label>Size (pt)</label>'+
+               '<input type="number" data-k="font_size" data-i="'+i+'" value="'+esc(e.font_size||18)+'" min="6" max="72"></div>'+
+               '<div><label>Color</label><input type="color" data-k="color" data-i="'+i+'" value="#'+esc((e.color||"111827").replace("#",""))+'"></div></div>';
+    }else{
+      const fill = type === "shape" ? '<div><label>Fill</label><div class="swatch" style="background:#'+esc((e.fill||"F5F5F5").replace("#",""))+'"></div></div>' : '';
+      inner += '<div class="el-meta"><div><label>Position:</label><span class="val">'+
+               Math.round(e.x)+'%, '+Math.round(e.y)+'%</span></div>'+
+               '<div><label>Size:</label><span class="val">'+Math.round(e.w)+'% x '+Math.round(e.h)+'%</span></div>'+fill+'</div>';
+    }
+    card.innerHTML = inner;
+    card.addEventListener("click", ev=>{
+      if(ev.target.closest(".trash") || ev.target.closest("textarea") || ev.target.closest("input")) return;
+      selectEl(i);
+    });
+    list.appendChild(card);
+  });
+  list.querySelectorAll(".trash").forEach(b=>b.addEventListener("click", ev=>{
+    ev.stopPropagation();
+    els.splice(+b.dataset.i, 1);
+    if(S.sel >= els.length) S.sel = -1;
+    renderEdit();
+  }));
+  list.querySelectorAll(".el-text").forEach(t=>t.addEventListener("input", ()=>{
+    els[+t.dataset.i].text = t.value;
+    if(+t.dataset.i === S.sel) $("textEdit").value = t.value;
+  }));
+  list.querySelectorAll('input[data-k="font_size"]').forEach(n=>n.addEventListener("change", ()=>{
+    els[+n.dataset.i].font_size = Math.max(6, Math.min(72, +n.value || 18));
+  }));
+  list.querySelectorAll('input[data-k="color"]').forEach(c=>c.addEventListener("change", ()=>{
+    els[+c.dataset.i].color = c.value.replace("#","");
+  }));
+  // selected text editor under the slide
+  const selEl = els[S.sel];
+  if(selEl && (selEl.type||"").toLowerCase() === "text"){
+    $("textEditor").hidden = false;
+    $("textEdit").value = selEl.text || "";
+  }else{
+    $("textEditor").hidden = true;
+  }
+}
+function selectEl(i){
+  S.sel = (S.sel === i) ? -1 : i;
+  renderEdit();
+  if(S.sel >= 0) setTimeout(()=>$("textEdit").focus(), 50);
+}
+$("textEdit").addEventListener("input", ()=>{
+  const els = S.slides[S.cur].elements;
+  if(S.sel >= 0 && els[S.sel]){
+    els[S.sel].text = $("textEdit").value;
+    const card = document.querySelector('.el-text[data-i="'+S.sel+'"]');
+    if(card && card.value !== $("textEdit").value) card.value = $("textEdit").value;
+  }
+});
+
+/* ---------- generate ---------- */
+$("generateBtn").addEventListener("click", async ()=>{
+  const btn = $("generateBtn");
+  btn.disabled = true;
+  show("screen-converting");
+  ["parse","analyze"].forEach(s=>setStep(s,"done"));
+  setStep("generate","active"); setProg(88);
+  try{
+    const images = {};
+    S.slides.forEach((s,i)=>{
+      const hasImg = (s.elements||[]).some(e=>(e.type||"").toLowerCase()==="image");
+      if(hasImg) images[s.page] = S.pages[i].jpeg.split(",",2)[1];
+    });
+    const res = await fetch("/api/build", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({slides: S.slides, images})
+    });
+    if(!res.ok) throw new Error("Server error (" + res.status + ").");
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || "Failed to generate PPTX.");
+    setProg(100); setStep("generate","done");
+    const bin = atob(data.pptx_base64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], {type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "Converted_Presentation.pptx";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 8000);
+    await new Promise(r=>setTimeout(r, 400));
+    show("screen-done");
+  }catch(err){
+    console.error(err);
+    show("screen-edit");
+    alert(err.message || "Failed to generate PPTX.");
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+$("againBtn").addEventListener("click", ()=>{
+  S.file = null; S.pages = []; S.slides = []; S.cur = 0; S.sel = -1;
+  $("fileCard").hidden = true; $("fileInput").value = "";
+  hideError();
+  show("screen-upload");
 });
 </script>
 </body>

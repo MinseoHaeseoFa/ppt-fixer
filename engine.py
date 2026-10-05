@@ -370,14 +370,14 @@ def build_from_layout(slides, sources, font_key="malgun", aspect="16:9"):
     """정밀 모드(레이아웃 재현): Gemini가 추출한 위치 요소 JSON → PPTX.
 
     slides = [{"page": 1, "notes": str?, "elements": [
-        {"type": "text", "x": 0~1000, "y": 0~1000, "w":.., "h":..,
+        {"type": "text", "x": 0~100, "y": 0~100, "w":.., "h":..,
          "text": str, "font_size": pt, "bold": bool, "italic": bool,
          "color": "RRGGBB", "align": "left|center|right"},
         {"type": "shape", "shape": "rect|ellipse",
          "x":..,"y":..,"w":..,"h":.., "fill": "RRGGBB"},
         {"type": "image", "x":..,"y":..,"w":..,"h":..},
     ]}]
-    sources = [png_bytes...] — 페이지별 원본 이미지 ("image" 요소 크롭용).
+    sources = [png_bytes...] — 슬라이드 순서대로 원본 페이지 이미지 ("image" 요소 크롭용).
     elements는 받은 순서대로 그려 배경→전경 레이어를 재현한다.
     오타는 사용자가 직접 고치므로 텍스트를 절대 임의로 수정하지 않는다.
     """
@@ -393,23 +393,22 @@ def build_from_layout(slides, sources, font_key="malgun", aspect="16:9"):
     from PIL import Image as PILImage
 
     def NX(x):
-        return Emu(int(max(0, min(1000, float(x or 0))) / 1000 * sw))
+        return Emu(int(max(0, min(100, float(x or 0))) / 100 * sw))
     def NY(y):
-        return Emu(int(max(0, min(1000, float(y or 0))) / 1000 * sh))
+        return Emu(int(max(0, min(100, float(y or 0))) / 100 * sh))
     def NW(w):
-        return Emu(max(1, int(max(0, float(w or 0)) / 1000 * sw)))
+        return Emu(max(1, int(max(0, float(w or 0)) / 100 * sw)))
     def NH(h):
-        return Emu(max(1, int(max(0, float(h or 0)) / 1000 * sh)))
+        return Emu(max(1, int(max(0, float(h or 0)) / 100 * sh)))
 
-    def crop_source(page_no, x, y, w, h):
-        idx = (page_no or 1) - 1
-        if idx < 0 or idx >= len(sources) or not sources[idx]:
+    def crop_source(src_bytes, x, y, w, h):
+        if not src_bytes:
             return None
         try:
-            im = PILImage.open(io.BytesIO(sources[idx])).convert("RGB")
+            im = PILImage.open(io.BytesIO(src_bytes)).convert("RGB")
             iw, ih = im.size
-            box = (int(x / 1000 * iw), int(y / 1000 * ih),
-                   int((x + w) / 1000 * iw), int((y + h) / 1000 * ih))
+            box = (int(x / 100 * iw), int(y / 100 * ih),
+                   int((x + w) / 100 * iw), int((y + h) / 100 * ih))
             box = (max(0, box[0]), max(0, box[1]),
                    min(iw, max(box[0] + 1, box[2])),
                    min(ih, max(box[1] + 1, box[3])))
@@ -422,13 +421,13 @@ def build_from_layout(slides, sources, font_key="malgun", aspect="16:9"):
             return None
 
     n_slides = 0
-    for item in slides[:80]:
+    for idx, item in enumerate(slides[:80]):
         if not isinstance(item, dict):
             continue
         elements = item.get("elements")
         if not isinstance(elements, list) or not elements:
             continue
-        page_no = item.get("page", n_slides + 1)
+        src_bytes = sources[idx] if idx < len(sources) else None
         slide = prs.slides.add_slide(blank)
         n_slides += 1
 
@@ -482,7 +481,7 @@ def build_from_layout(slides, sources, font_key="malgun", aspect="16:9"):
                     shp.fill.fore_color.rgb = RGBColor(r, g, b)
                     shp.line.fill.background()  # 테두리 없음
                 elif etype == "image":
-                    png = crop_source(page_no, x, y, w, h)
+                    png = crop_source(src_bytes, x, y, w, h)
                     if not png:
                         continue
                     slide.shapes.add_picture(io.BytesIO(png), NX(x), NY(y),
