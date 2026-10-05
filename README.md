@@ -1,6 +1,6 @@
 # 깨짐제로 PPT
 
-NotebookLM 슬라이드 PDF를 한글 깨짐 없이 편집 가능한 PPTX로 변환하는 웹앱.
+NotebookLM 슬라이드 PDF·이미지를 한글 깨짐 없이 편집 가능한 PPTX로 변환하는 웹앱.
 
 ## 문제
 
@@ -9,9 +9,15 @@ NotebookLM 슬라이드 PDF를 한글 깨짐 없이 편집 가능한 PPTX로 변
 
 ## 해결 방식 (하이브리드 파이프라인)
 
+**PDF**
 1. **고속 모드**: PDF에서 텍스트·위치·이미지를 직접 추출 → 수 초 만에 PPTX 생성 (API 비용 0원)
 2. **정밀 모드**: 텍스트 추출이 어려운 PDF는 Gemini 멀티모달이 슬라이드 구조를 JSON으로 파악 → PPTX 조립
-   - Gemini API 키는 사용자 브라우저에만 저장 (서버로 전송 안 됨)
+
+**이미지 (JPG·PNG·WebP, 최대 20장)**
+1. **빠른 담기**: 각 이미지를 슬라이드 한 장에 (API 키 불필요)
+2. **정밀 모드**: Gemini가 이미지를 읽고 텍스트까지 편집 가능한 슬라이드로 변환
+
+Gemini API 키는 사용자 브라우저에만 저장 (서버로 전송 안 됨).
 
 **한글 깨짐 방지 핵심**: 모든 텍스트 run에 OOXML 동아시아(`a:ea`) 서체를 명시적으로 지정 +
 `lang="ko-KR"` 설정. 폰트 테마 3종 (맑은 고딕 / Noto Sans KR / Pretendard).
@@ -46,5 +52,5 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 **POST /api/convert** — `{pdf_base64, font, aspect}` →
 `{ok, report:{mode:"fast"|"needs_ocr", ...}, pptx_base64?}`
 
-**POST /api/build** — `{slides:[{title, bullets[], notes?}], font, aspect}` →
-`{ok, report, pptx_base64}`
+**POST /api/build** — `{slides:[{title, bullets[], notes?}], font, aspect}` 또는
+`{images:[{data: base64, name}], aspect}` → `{ok, report, pptx_base64}`

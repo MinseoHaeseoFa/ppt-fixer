@@ -293,6 +293,50 @@ def build_from_json(slides, font_key="malgun", aspect="16:9"):
     }
 
 
+def build_from_images(images, aspect="16:9"):
+    """이미지들을 각 슬라이드에 비율 유지로 가득 채워 PPTX 생성 (빠른 담기용).
+    images = [(bytes, name), ...] — JPG/PNG/WebP 모두 PNG로 정규화."""
+    from PIL import Image
+    if not images:
+        raise ConvertError("bad_images", "이미지가 비어 있어요.")
+    if len(images) > 20:
+        raise ConvertError("too_many", "이미지는 최대 20장까지 올릴 수 있어요.")
+    prs = Presentation()
+    sw_in, sh_in = ASPECTS.get(aspect, ASPECTS["16:9"])
+    sw, sh = Emu(int(sw_in * 914400)), Emu(int(sh_in * 914400))
+    prs.slide_width, prs.slide_height = sw, sh
+    blank = prs.slide_layouts[6]
+    for data, name in images:
+        try:
+            im = Image.open(io.BytesIO(data))
+        except Exception:
+            raise ConvertError("bad_images", "이미지를 읽을 수 없어요: %s" % (name or ""))
+        if im.mode in ("RGBA", "LA"):
+            bg = Image.new("RGB", im.size, (255, 255, 255))
+            bg.paste(im, mask=im.split()[-1])
+            im = bg
+        elif im.mode != "RGB":
+            im = im.convert("RGB")
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        png = buf.getvalue()
+        iw, ih = im.size
+        if iw <= 0 or ih <= 0:
+            continue
+        slide = prs.slides.add_slide(blank)
+        scale = min(sw / iw, sh / ih)
+        w, h = Emu(int(iw * scale)), Emu(int(ih * scale))
+        left, top = Emu(int((sw - w) / 2)), Emu(int((sh - h) / 2))
+        slide.shapes.add_picture(io.BytesIO(png), left, top, w, h)
+    out = io.BytesIO()
+    prs.save(out)
+    return out.getvalue(), {
+        "mode": "image",
+        "pages": len(images),
+        "aspect": aspect,
+    }
+
+
 # Vercel이 api/*.py를 전부 엔드포인트로 취급하므로,
 # 이 모듈 직접 호출 시 404 안내를 반환한다.
 class handler(BaseHTTPRequestHandler):

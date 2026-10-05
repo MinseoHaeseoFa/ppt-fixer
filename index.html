@@ -88,7 +88,7 @@
   </header>
 
   <div class="howto">
-    <div><span class="e">📄</span><b>1. PDF 올리기</b>NotebookLM에서 다운로드한 슬라이드 PDF를 드래그해서 놓으세요.</div>
+    <div><span class="e">📄</span><b>1. 파일 올리기</b>NotebookLM 슬라이드 PDF나 이미지(JPG·PNG·WebP)를 드래그해서 놓으세요.</div>
     <div><span class="e">🔍</span><b>2. 자동 진단</b>텍스트 추출 가능 여부를 판단해 가장 빠르고 정확한 방식을 골라요.</div>
     <div><span class="e">⬇️</span><b>3. PPTX 받기</b>한글 서체가 명시된 편집 가능한 파워포인트 파일로 저장됩니다.</div>
   </div>
@@ -99,8 +99,8 @@
     <h2><span class="n">1</span> PDF 파일 올리기</h2>
     <div id="dropzone">
       <div class="big">📄</div>
-      <p><b>여기에 PDF를 끌어다 놓거나 클릭하세요</b><br>4MB 이하 · 최대 80페이지 · 파일은 변환 후 즉시 삭제됩니다</p>
-      <input type="file" id="fileInput" accept=".pdf,application/pdf" style="display:none">
+      <p><b>여기에 PDF·이미지를 끌어다 놓거나 클릭하세요</b><br>PDF 4MB 이하 · 이미지(JPG·PNG·WebP) 각 10MB 이하, 최대 20장</p>
+      <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple style="display:none">
     </div>
     <div id="fileInfo"><div class="fn"></div><div class="meta"></div></div>
   </div>
@@ -137,6 +137,7 @@
   <div class="card" id="precise">
     <h2><span class="n">✦</span> 정밀 모드 (Gemini)</h2>
     <div class="desc" id="preciseDesc"></div>
+    <button id="quickBtn" style="display:none; width:100%; font-size:15px; font-weight:800; color:#06281c; background:linear-gradient(135deg,#34d399,#10b981); border:none; border-radius:12px; padding:14px; cursor:pointer; font-family:inherit; margin-bottom:10px;">이미지 그대로 담기 (빠름 · API 키 불필요)</button>
     <input type="password" id="apiKey" placeholder="Gemini API 키를 입력하세요 (브라우저에만 저장됨)" autocomplete="off">
     <button id="preciseBtn">정밀 변환 시작</button>
     <div class="keynote">API 키는 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 무료로 발급받을 수 있어요. 키는 이 브라우저에만 저장되고 서버로 전송되지 않아요.</div>
@@ -151,8 +152,19 @@
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
-const state = { buf:null, name:"", font:"malgun", aspect:"16:9", pptxB64:"", outName:"" };
-const MAX_BYTES = 4 * 1024 * 1024;
+const state = { buf:null, name:"", images:[], kind:null, font:"malgun", aspect:"16:9", pptxB64:"", outName:"" };
+const MAX_PDF_BYTES = 4 * 1024 * 1024;
+const MAX_IMG_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGES = 20;
+
+function detectImageMime(buf){
+  const b = new Uint8Array(buf);
+  if(b[0]===0xFF && b[1]===0xD8 && b[2]===0xFF) return "image/jpeg";
+  if(b[0]===0x89 && b[1]===0x50 && b[2]===0x4E && b[3]===0x47) return "image/png";
+  if(b[0]===0x52 && b[1]===0x49 && b[2]===0x46 && b[3]===0x46 &&
+     b[8]===0x57 && b[9]===0x45 && b[10]===0x42 && b[11]===0x50) return "image/webp";
+  return null;
+}
 
 function showError(msg){
   const e = $("error");
@@ -200,39 +212,67 @@ dz.addEventListener("click", ()=>fi.click());
 ["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.add("over");}));
 ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.remove("over");}));
 dz.addEventListener("drop", e=>{
-  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 });
-fi.addEventListener("change", ()=>{ if(fi.files.length) handleFile(fi.files[0]); });
+fi.addEventListener("change", ()=>{ if(fi.files.length) handleFiles(fi.files); });
 
-async function handleFile(file){
+async function handleFiles(fileList){
   hideError();
   $("result").style.display = "none";
   $("precise").style.display = "none";
-  if(!/\.pdf$/i.test(file.name)){
-    showError("PDF 파일만 올릴 수 있어요.");
+  state.buf = null; state.images = []; state.kind = null;
+  const files = Array.from(fileList);
+  const pdfs = [], images = [];
+  for(const f of files){
+    if(/\.pdf$/i.test(f.name)) pdfs.push(f);
+    else if(/\.(jpe?g|png|webp)$/i.test(f.name)) images.push(f);
+    else{ showError("지원하지 않는 파일이에요: " + f.name + " (PDF·JPG·PNG·WebP만 가능)"); return; }
+  }
+  if(pdfs.length && images.length){
+    showError("PDF와 이미지는 함께 올릴 수 없어요. 따로 올려주세요.");
     return;
   }
-  if(file.size > MAX_BYTES){
-    showError("파일이 너무 커요 (" + (file.size/1048576).toFixed(1) + "MB). 4MB 이하로 줄여서 올려주세요.");
-    return;
+  if(pdfs.length > 1){ showError("PDF는 한 번에 하나만 올릴 수 있어요."); return; }
+  if(images.length > MAX_IMAGES){ showError("이미지는 최대 " + MAX_IMAGES + "장까지 올릴 수 있어요."); return; }
+
+  if(pdfs.length){
+    const file = pdfs[0];
+    if(file.size > MAX_PDF_BYTES){
+      showError("파일이 너무 커요 (" + (file.size/1048576).toFixed(1) + "MB). 4MB 이하로 줄여서 올려주세요.");
+      return;
+    }
+    const buf = await file.arrayBuffer();
+    const magic = String.fromCharCode.apply(null, new Uint8Array(buf.slice(0,5)));
+    if(magic !== "%PDF-"){ showError("PDF 파일이 아닌 것 같아요. 파일을 다시 확인해주세요."); return; }
+    state.kind = "pdf"; state.buf = buf; state.name = file.name;
+    showFileInfo("📄 " + file.name, (file.size/1024).toFixed(0) + "KB · 변환 준비 완료");
+  }else{
+    const okImgs = [];
+    for(const f of images){
+      if(f.size > MAX_IMG_BYTES){ showError(f.name + ": 10MB 이하의 이미지만 올려주세요."); return; }
+      const buf = await f.arrayBuffer();
+      const mime = detectImageMime(buf);
+      if(!mime){ showError(f.name + ": 이미지 파일을 읽을 수 없어요. (JPG·PNG·WebP)"); return; }
+      okImgs.push({buf, name:f.name, mime});
+    }
+    state.kind = "image"; state.images = okImgs;
+    state.name = okImgs.length === 1 ? okImgs[0].name : "이미지 " + okImgs.length + "장";
+    const kb = okImgs.reduce((a,x)=>a + x.buf.byteLength, 0) / 1024;
+    showFileInfo("🖼️ " + state.name, kb.toFixed(0) + "KB · " + okImgs.length + "장 → 슬라이드 " + okImgs.length + "장");
   }
-  const buf = await file.arrayBuffer();
-  const head = new Uint8Array(buf.slice(0,5));
-  const magic = String.fromCharCode.apply(null, head);
-  if(magic !== "%PDF-"){
-    showError("PDF 파일이 아닌 것 같아요. 파일을 다시 확인해주세요.");
-    return;
-  }
-  state.buf = buf;
-  state.name = file.name;
-  const info = $("fileInfo");
-  info.style.display = "block";
-  info.querySelector(".fn").textContent = "📄 " + file.name;
-  info.querySelector(".meta").textContent = (file.size/1024).toFixed(0) + "KB · 변환 준비 완료";
   const btn = $("convertBtn");
   btn.disabled = false;
   btn.textContent = "변환하기 ✨";
 }
+
+function showFileInfo(fn, meta){
+  const info = $("fileInfo");
+  info.style.display = "block";
+  info.querySelector(".fn").textContent = fn;
+  info.querySelector(".meta").textContent = meta;
+}
+
+async function handleFile(file){ return handleFiles([file]); }
 
 // 진행 단계 UI
 const STEPS = ["PDF 확인", "서버로 전송", "슬라이드 분석", "PPTX 생성", "완료"];
@@ -256,6 +296,7 @@ async function postJSON(url, data){
 }
 
 $("convertBtn").addEventListener("click", async ()=>{
+  if(state.kind === "image"){ showPreciseImage(); return; }
   if(!state.buf) return;
   hideError();
   $("result").style.display = "none";
@@ -304,19 +345,106 @@ function showResult(rep){
   const r = $("result");
   r.style.display = "block";
   const fontName = {malgun:"맑은 고딕", noto:"Noto Sans KR", pretendard:"Pretendard"}[state.font] || state.font;
-  r.querySelector(".rep").innerHTML =
-    `<b>${rep.pages}페이지</b> 변환 완료 · 고속 모드<br>한글 폰트: ${fontName} (깨짐 방지 처리됨) · 화면비 ${rep.aspect || state.aspect}`;
+  let info;
+  if(rep.mode === "image"){
+    info = `<b>${rep.pages}장</b> 담기 완료 · 이미지 그대로 모드<br>화면비 ${rep.aspect || state.aspect}`;
+  }else{
+    info = `<b>${rep.pages}페이지</b> 변환 완료 · ${rep.mode === "precise" ? "정밀" : "고속"} 모드<br>한글 폰트: ${fontName} (깨짐 방지 처리됨) · 화면비 ${rep.aspect || state.aspect}`;
+  }
+  r.querySelector(".rep").innerHTML = info;
   r.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 $("dlBtn").addEventListener("click", ()=>{
   if(state.pptxB64) downloadB64(state.pptxB64, state.outName);
 });
 
-// 정밀 모드 (Gemini)
+// 이미지용 정밀 카드
+function showPreciseImage(){
+  hideError();
+  $("result").style.display = "none";
+  const p = $("precise");
+  p.style.display = "block";
+  $("quickBtn").style.display = "block";
+  $("preciseDesc").innerHTML =
+    `이미지 <b>${state.images.length}장</b>을 슬라이드로 만들 수 있어요.<br>` +
+    `· <b>이미지 그대로 담기</b>: 각 이미지를 슬라이드 한 장에 (빠름, API 키 불필요 — 텍스트 편집은 안 돼요)<br>` +
+    `· <b>정밀 변환</b>: Gemini가 이미지를 읽고 텍스트까지 편집 가능한 슬라이드로 (API 키 필요)`;
+  const saved = localStorage.getItem("gemini_key");
+  if(saved) $("apiKey").value = saved;
+  p.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+$("quickBtn").addEventListener("click", async ()=>{
+  hideError();
+  const btn = $("quickBtn");
+  btn.disabled = true; btn.textContent = "담는 중…";
+  $("progressCard").style.display = "block";
+  try{
+    renderSteps(1);
+    const images = state.images.map(x=>({data: bufToB64(x.buf), name: x.name}));
+    renderSteps(2);
+    const data = await postJSON("/api/build", {images, aspect: state.aspect});
+    if(!data.ok) throw new Error(data.error || "생성에 실패했어요.");
+    renderSteps(3);
+    state.pptxB64 = data.pptx_base64;
+    state.outName = "slides-" + state.images.length + "pages.pptx";
+    renderSteps(4);
+    await new Promise(r=>setTimeout(r,300));
+    showResult(data.report);
+  }catch(err){
+    if(String(err.message||err).includes("Failed to fetch")){
+      showError("서버에 연결할 수 없어요. 이 앱은 배포된 사이트 주소에서 동작해요.");
+    }else{
+      showError(err.message || "알 수 없는 오류가 발생했어요.");
+    }
+    $("progressCard").style.display = "none";
+  }finally{
+    btn.disabled = false; btn.textContent = "이미지 그대로 담기 (빠름 · API 키 불필요)";
+  }
+});
+
+const GEMINI_IMG_PROMPT = [
+  "이 이미지는 프레젠테이션 슬라이드 1장입니다. 이미지 속 텍스트와 구조를 분석해서",
+  "아래 JSON 배열 형식으로만 출력하세요. 설명 문장이나 코드펜스는 절대 포함하지 마세요.",
+  "",
+  '[{"title":"슬라이드 제목","bullets":["핵심 내용1","핵심 내용2"],"notes":""}]',
+  "",
+  "규칙:",
+  "1. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요.",
+  "2. 제목이 없으면 이미지의 첫 번째 핵심 문장을 제목으로 하세요.",
+  "3. 불릿은 최대 6개로 요약하세요."
+].join("\n");
+
+async function geminiSlides(mime, b64, key, prompt){
+  const gres = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL +
+    ":generateContent?key=" + encodeURIComponent(key),
+    {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        contents:[{parts:[
+          {inline_data:{mime_type: mime, data: b64}},
+          {text: prompt}
+        ]}],
+        generationConfig:{response_mime_type:"application/json", temperature:0.2}
+      })
+    });
+  if(!gres.ok){
+    if(gres.status === 400) throw new Error("API 키가 올바르지 않거나 요청이 잘못됐어요. 키를 확인해주세요.");
+    throw new Error("Gemini 호출 실패 (" + gres.status + "). 잠시 후 다시 시도해주세요.");
+  }
+  const gj = await gres.json();
+  const text = (gj.candidates && gj.candidates[0] && gj.candidates[0].content &&
+                gj.candidates[0].content.parts || []).map(p=>p.text||"").join("");
+  if(!text) throw new Error("Gemini가 빈 응답을 보냈어요. 다시 시도해주세요.");
+  return extractSlidesArray(text);
+}
 function showPrecise(rep){
   $("progressCard").style.display = "none";
   const p = $("precise");
   p.style.display = "block";
+  $("quickBtn").style.display = "none";
   const d = rep.diagnosis || {};
   $("preciseDesc").innerHTML =
     `이 PDF는 텍스트 추출이 어려워(<b>${d.pages||"?"}페이지</b>) 고속 변환이 안 돼요. ` +
@@ -353,39 +481,31 @@ $("preciseBtn").addEventListener("click", async ()=>{
   if(!key){ showError("Gemini API 키를 입력해주세요."); return; }
   localStorage.setItem("gemini_key", key);
   const btn = $("preciseBtn");
-  btn.disabled = true; btn.textContent = "Gemini가 읽는 중… (30초~1분)";
+  btn.disabled = true;
   $("progressCard").style.display = "block";
   try{
     renderSteps(2);
-    const gres = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL +
-      ":generateContent?key=" + encodeURIComponent(key),
-      {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({
-          contents:[{parts:[
-            {inline_data:{mime_type:"application/pdf", data: bufToB64(state.buf)}},
-            {text: GEMINI_PROMPT}
-          ]}],
-          generationConfig:{response_mime_type:"application/json", temperature:0.2}
-        })
-      });
-    if(!gres.ok){
-      if(gres.status === 400) throw new Error("API 키가 올바르지 않거나 요청이 잘못됐어요. 키를 확인해주세요.");
-      throw new Error("Gemini 호출 실패 (" + gres.status + "). 잠시 후 다시 시도해주세요.");
+    let slides;
+    if(state.kind === "image"){
+      slides = [];
+      for(let i=0; i<state.images.length; i++){
+        const img = state.images[i];
+        btn.textContent = `Gemini가 읽는 중… (${i+1}/${state.images.length})`;
+        const s = await geminiSlides(img.mime, bufToB64(img.buf), key, GEMINI_IMG_PROMPT);
+        slides = slides.concat(s);
+      }
+      if(!slides.length) throw new Error("Gemini가 슬라이드를 추출하지 못했어요.");
+    }else{
+      btn.textContent = "Gemini가 읽는 중… (30초~1분)";
+      slides = await geminiSlides("application/pdf", bufToB64(state.buf), key, GEMINI_PROMPT);
     }
-    const gj = await gres.json();
-    const text = (gj.candidates && gj.candidates[0] && gj.candidates[0].content &&
-                  gj.candidates[0].content.parts || []).map(p=>p.text||"").join("");
-    if(!text) throw new Error("Gemini가 빈 응답을 보냈어요. 다시 시도해주세요.");
-    const slides = extractSlidesArray(text);
     renderSteps(3);
     btn.textContent = "PPTX 만드는 중…";
     const data = await postJSON("/api/build", {slides, font: state.font, aspect: state.aspect});
     if(!data.ok) throw new Error(data.error || "PPT 생성에 실패했어요.");
     state.pptxB64 = data.pptx_base64;
-    state.outName = state.name.replace(/\.pdf$/i, "") + ".pptx";
+    state.outName = state.name.replace(/\.(pdf|jpe?g|png|webp)$/i, "") + ".pptx";
+    if(state.kind === "image") state.outName = "slides-" + state.images.length + "pages.pptx";
     renderSteps(4);
     const rep = data.report; rep.aspect = state.aspect;
     showResult(rep);

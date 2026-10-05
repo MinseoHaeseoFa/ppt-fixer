@@ -23,6 +23,24 @@ class handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length) if length else b"{}"
             data = json.loads(raw)
+            aspect = data.get("aspect", "16:9")
+            images = data.get("images")
+            if isinstance(images, list) and images:
+                if len(images) > 20:
+                    return self._send(200, {"ok": False, "code": "too_many",
+                                            "error": "이미지는 최대 20장까지 올릴 수 있어요."})
+                decoded = []
+                for it in images:
+                    b64 = it.get("data", "") if isinstance(it, dict) else it
+                    name = it.get("name", "") if isinstance(it, dict) else ""
+                    raw_img = base64.b64decode(b64)
+                    if len(raw_img) > 12 * 1024 * 1024:
+                        return self._send(200, {"ok": False, "code": "too_big",
+                                                "error": "이미지가 너무 커요. 장당 10MB 이하로 올려주세요."})
+                    decoded.append((raw_img, name))
+                pptx, report = engine.build_from_images(decoded, aspect)
+                return self._send(200, {"ok": True, "report": report,
+                                        "pptx_base64": base64.b64encode(pptx).decode("ascii")})
             slides = data.get("slides")
             if not isinstance(slides, list) or not slides:
                 return self._send(200, {"ok": False, "code": "bad_json",

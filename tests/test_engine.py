@@ -162,6 +162,24 @@ def main():
         assert e.code == "encrypted", e.code
     print("[OK] encrypted PDF → clean error")
 
+    # 이미지 담기
+    imgs = []
+    for i, color in enumerate([(200, 50, 50), (50, 120, 200)]):
+        im = Image.new("RGB", (800, 450), color)
+        d2 = ImageDraw.Draw(im)
+        d2.text((300, 200), "slide %d" % (i + 1))
+        b = io.BytesIO()
+        im.save(b, format="PNG")
+        imgs.append((b.getvalue(), "s%d.png" % (i + 1)))
+    pptx5, rep5 = engine.build_from_images(imgs, "16:9")
+    assert rep5["mode"] == "image" and rep5["pages"] == 2, rep5
+    z5 = zipfile.ZipFile(io.BytesIO(pptx5))
+    n_slides = len([n for n in z5.namelist()
+                    if n.startswith("ppt/slides/slide") and n.endswith(".xml")])
+    assert n_slides == 2, n_slides
+    assert any(n.startswith("ppt/media/") for n in z5.namelist()), "media missing"
+    print("[OK] build_from_images — 2 slides, images embedded")
+
     print("\nALL ENGINE TESTS PASSED")
 
 
