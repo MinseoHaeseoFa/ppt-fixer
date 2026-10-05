@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>깨짐제로 PPT — NotebookLM 슬라이드를 편집 가능한 PPTX로</title>
+<title>오타잡이 PPT — NotebookLM 슬라이드 오타, 직접 고치기</title>
 <style>
   :root{
     --bg:#0a0e1f; --panel:#141b3a; --panel2:#1a2350; --line:#26335f;
@@ -82,14 +82,14 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">깨짐ZERO PPT</div>
-    <h1>NotebookLM 슬라이드,<br><span class="hl">한글 깨짐 없이</span> 편집 가능한 PPT로</h1>
-    <p>PDF를 올리면 텍스트·이미지·레이아웃을 그대로 살려<br>진짜 편집되는 PPTX 파일로 변환해드려요.</p>
+    <div class="logo">오타잡이 PPT</div>
+    <h1>NotebookLM 슬라이드,<br><span class="hl">오타 직접</span> 고치는 PPT로</h1>
+    <p>PDF·이미지를 올리면 텍스트·이미지·레이아웃을 그대로 살려<br>진짜 편집되는 PPTX 파일로 변환해드려요. 오타는 파워포인트에서 직접 고치세요.</p>
   </header>
 
   <div class="howto">
     <div><span class="e">📄</span><b>1. 파일 올리기</b>NotebookLM 슬라이드 PDF나 이미지(JPG·PNG·WebP)를 드래그해서 놓으세요.</div>
-    <div><span class="e">🔍</span><b>2. 자동 진단</b>텍스트 추출 가능 여부를 판단해 가장 빠르고 정확한 방식을 골라요.</div>
+    <div><span class="e">🔍</span><b>2. 자동 분석</b>슬라이드 구조를 분석해 텍스트·그림의 위치까지 살리는 방식을 골라요.</div>
     <div><span class="e">⬇️</span><b>3. PPTX 받기</b>한글 서체가 명시된 편집 가능한 파워포인트 파일로 저장됩니다.</div>
   </div>
 
@@ -368,7 +368,7 @@ function showPreciseImage(){
   $("preciseDesc").innerHTML =
     `이미지 <b>${state.images.length}장</b>을 슬라이드로 만들 수 있어요.<br>` +
     `· <b>이미지 그대로 담기</b>: 각 이미지를 슬라이드 한 장에 (빠름, API 키 불필요 — 텍스트 편집은 안 돼요)<br>` +
-    `· <b>정밀 변환</b>: Gemini가 이미지를 읽고 텍스트까지 편집 가능한 슬라이드로 (API 키 필요)`;
+    `· <b>정밀 변환</b>: Gemini가 레이아웃 그대로 읽어 텍스트까지 편집 가능한 슬라이드로 재구성 (API 키 필요)`;
   const saved = localStorage.getItem("gemini_key");
   if(saved) $("apiKey").value = saved;
   p.scrollIntoView({behavior:"smooth", block:"nearest"});
@@ -404,15 +404,21 @@ $("quickBtn").addEventListener("click", async ()=>{
 });
 
 const GEMINI_IMG_PROMPT = [
-  "이 이미지는 프레젠테이션 슬라이드 1장입니다. 이미지 속 텍스트와 구조를 분석해서",
-  "아래 JSON 배열 형식으로만 출력하세요. 설명 문장이나 코드펜스는 절대 포함하지 마세요.",
+  "이 이미지는 프레젠테이션 슬라이드 1장입니다. 슬라이드의 요소(텍스트·도형·그림)와",
+  "각 요소의 위치를 분석해서 아래 JSON 형식으로만 출력하세요.",
+  "설명 문장이나 코드펜스는 절대 포함하지 마세요.",
   "",
-  '[{"title":"슬라이드 제목","bullets":["핵심 내용1","핵심 내용2"],"notes":""}]',
+  '[{"page":1,"elements":[' +
+  '{"type":"text","x":120,"y":60,"w":760,"h":110,"text":"제목 텍스트","font_size":40,"bold":true,"color":"1A1A2E","align":"center"},' +
+  '{"type":"shape","shape":"rect","x":80,"y":200,"w":840,"h":300,"fill":"F5F5F5"},' +
+  '{"type":"image","x":600,"y":220,"w":280,"h":260}]}]',
   "",
   "규칙:",
-  "1. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요.",
-  "2. 제목이 없으면 이미지의 첫 번째 핵심 문장을 제목으로 하세요.",
-  "3. 불릿은 최대 6개로 요약하세요."
+  "1. 좌표는 이미지를 가로·세로 각 1000으로 정규화한 값입니다. 텍스트 박스는 글자에 딱 맞게(tight) 잡으세요.",
+  "2. 배경 도형·그림을 먼저 나열하고, 그 위에 올라가는 텍스트를 나중에 나열하세요.",
+  "3. font_size는 화면상 크기를 보고 포인트 단위로 추정하세요 (제목 28~44, 본문 14~24 참고).",
+  "4. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요. 오타가 있어도 절대 고치지 마세요.",
+  "5. 그림·사진·차트 영역은 텍스트를 만들지 말고 type 'image'로 위치만 표시하세요."
 ].join("\n");
 
 async function geminiSlides(mime, b64, key, prompt){
@@ -448,7 +454,7 @@ function showPrecise(rep){
   const d = rep.diagnosis || {};
   $("preciseDesc").innerHTML =
     `이 PDF는 텍스트 추출이 어려워(<b>${d.pages||"?"}페이지</b>) 고속 변환이 안 돼요. ` +
-    `Gemini가 슬라이드를 직접 읽고 구조를 파악하는 <b>정밀 모드</b>로 변환할 수 있어요. (약 30초~1분 소요)`;
+    `Gemini가 텍스트·그림의 위치까지 읽어 <b>원본 레이아웃 그대로</b> 편집 가능한 슬라이드로 재구성하는 <b>정밀 모드</b>로 변환할 수 있어요. (약 30초~1분 소요)`;
   const saved = localStorage.getItem("gemini_key");
   if(saved) $("apiKey").value = saved;
   p.scrollIntoView({behavior:"smooth", block:"nearest"});
@@ -457,14 +463,21 @@ function showPrecise(rep){
 const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_PROMPT = [
   "이 PDF는 프레젠테이션 슬라이드입니다. 각 페이지를 하나의 슬라이드로 분석해서",
-  "아래 JSON 배열 형식으로만 출력하세요. 설명 문장이나 코드펜스는 절대 포함하지 마세요.",
+  "슬라이드의 요소(텍스트·도형·그림)와 각 요소의 위치를 아래 JSON 배열 형식으로만 출력하세요.",
+  "설명 문장이나 코드펜스는 절대 포함하지 마세요.",
   "",
-  '[{"title":"슬라이드 제목","bullets":["핵심 내용1","핵심 내용2"],"notes":"발표자 노트"}]',
+  '[{"page":1,"elements":[' +
+  '{"type":"text","x":120,"y":60,"w":760,"h":110,"text":"제목 텍스트","font_size":40,"bold":true,"color":"1A1A2E","align":"center"},' +
+  '{"type":"shape","shape":"rect","x":80,"y":200,"w":840,"h":300,"fill":"F5F5F5"},' +
+  '{"type":"image","x":600,"y":220,"w":280,"h":260}]}]',
   "",
   "규칙:",
-  "1. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요.",
-  "2. 제목이 없으면 페이지의 첫 번째 핵심 문장을 제목으로 하세요.",
-  "3. 불릿은 페이지당 최대 6개, notes는 없으면 빈 문자열로 하세요."
+  "1. 좌표는 페이지를 가로·세로 각 1000으로 정규화한 값입니다. 텍스트 박스는 글자에 딱 맞게(tight) 잡으세요.",
+  "2. 배경 도형·그림을 먼저 나열하고, 그 위에 올라가는 텍스트를 나중에 나열하세요.",
+  "3. font_size는 화면상 크기를 보고 포인트 단위로 추정하세요 (제목 28~44, 본문 14~24 참고).",
+  "4. 한글은 원문 그대로, 한 글자도 바꾸거나 깨뜨리지 마세요. 오타가 있어도 절대 고치지 마세요.",
+  "5. 그림·사진·차트 영역은 텍스트를 만들지 말고 type 'image'로 위치만 표시하세요.",
+  "6. 모든 페이지에 대해 page 번호 순서대로 출력하세요."
 ].join("\n");
 
 function extractSlidesArray(text){
@@ -485,23 +498,31 @@ $("preciseBtn").addEventListener("click", async ()=>{
   $("progressCard").style.display = "block";
   try{
     renderSteps(2);
-    let slides;
+    let slides, buildPayload;
     if(state.kind === "image"){
       slides = [];
       for(let i=0; i<state.images.length; i++){
         const img = state.images[i];
         btn.textContent = `Gemini가 읽는 중… (${i+1}/${state.images.length})`;
         const s = await geminiSlides(img.mime, bufToB64(img.buf), key, GEMINI_IMG_PROMPT);
+        s.forEach(sl=>{ if(sl && typeof sl === "object") sl.page = i + 1; });
         slides = slides.concat(s);
       }
       if(!slides.length) throw new Error("Gemini가 슬라이드를 추출하지 못했어요.");
+      buildPayload = {
+        slides,
+        images: state.images.map(x=>({data: bufToB64(x.buf), name: x.name})),
+        font: state.font, aspect: state.aspect
+      };
     }else{
       btn.textContent = "Gemini가 읽는 중… (30초~1분)";
-      slides = await geminiSlides("application/pdf", bufToB64(state.buf), key, GEMINI_PROMPT);
+      const pdfB64 = bufToB64(state.buf);
+      slides = await geminiSlides("application/pdf", pdfB64, key, GEMINI_PROMPT);
+      buildPayload = {slides, pdf_base64: pdfB64, font: state.font, aspect: state.aspect};
     }
     renderSteps(3);
     btn.textContent = "PPTX 만드는 중…";
-    const data = await postJSON("/api/build", {slides, font: state.font, aspect: state.aspect});
+    const data = await postJSON("/api/build", buildPayload);
     if(!data.ok) throw new Error(data.error || "PPT 생성에 실패했어요.");
     state.pptxB64 = data.pptx_base64;
     state.outName = state.name.replace(/\.(pdf|jpe?g|png|webp)$/i, "") + ".pptx";

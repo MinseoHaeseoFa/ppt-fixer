@@ -1,7 +1,8 @@
-"""깨짐없는 PPT 변환 엔진 — Vercel 서버리스 / 로컬 공용 순수 모듈.
+"""오타잡이 PPT — Vercel 서버리스 / 로컬 공용 순수 모듈.
 
-핵심: PDF에서 추출한 한글 텍스트를 PPTX에 쓸 때 OOXML의
-동아시아(ea) 서체를 명시적으로 지정해 'ㅁㅁㅁ' 깨짐을 원천 차단한다.
+핵심: NotebookLM 슬라이드 PDF·이미지를 '직접 오타를 고칠 수 있는'
+편집 가능 PPTX로 변환한다. 한글 텍스트는 OOXML의 동아시아(ea) 서체를
+명시적으로 지정해 'ㅁㅁㅁ' 깨짐을 원천 차단한다.
 """
 import io
 
@@ -9,6 +10,7 @@ import pymupdf
 from pptx import Presentation
 from pptx.util import Emu, Pt
 from pptx.enum.text import PP_ALIGN
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml import parse_xml
 from pptx.oxml.ns import nsdecls, qn
 from pptx.dml.color import RGBColor
@@ -333,4 +335,177 @@ def build_from_images(images, aspect="16:9"):
         "mode": "image",
         "pages": len(images),
         "aspect": aspect,
+    }
+
+
+def render_page_png(pdf_bytes, page_no, width_px=1500):
+    """PDF의 특정 페이지를 PNG 바이트로 렌더 (정밀 모드 이미지 크롭용)."""
+    doc = _open_doc(pdf_bytes)
+    if page_no < 1 or page_no > doc.page_count:
+        raise ConvertError("bad_page", "페이지 번호가 범위를 벗어났어요.")
+    page = doc[page_no - 1]
+    pw = page.rect.width
+    if pw <= 0:
+        raise ConvertError("bad_page", "페이지를 렌더할 수 없어요.")
+    zoom = width_px / pw
+    pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom))
+    return pix.tobytes("png")
+
+
+_ALIGN_MAP = {"left": PP_ALIGN.LEFT, "center": PP_ALIGN.CENTER, "right": PP_ALIGN.RIGHT}
+_MAX_ELEMENTS = 80
+
+
+def _hex_to_rgb(hexstr, default=(0x33, 0x33, 0x33)):
+    try:
+        h = str(hexstr).strip().lstrip("#")
+        if len(h) == 6:
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    except Exception:
+        pass
+    return default
+
+
+def build_from_layout(slides, sources, font_key="malgun", aspect="16:9"):
+    """정밀 모드(레이아웃 재현): Gemini가 추출한 위치 요소 JSON → PPTX.
+
+    slides = [{"page": 1, "notes": str?, "elements": [
+        {"type": "text", "x": 0~1000, "y": 0~1000, "w":.., "h":..,
+         "text": str, "font_size": pt, "bold": bool, "italic": bool,
+         "color": "RRGGBB", "align": "left|center|right"},
+        {"type": "shape", "shape": "rect|ellipse",
+         "x":..,"y":..,"w":..,"h":.., "fill": "RRGGBB"},
+        {"type": "image", "x":..,"y":..,"w":..,"h":..},
+    ]}]
+    sources = [png_bytes...] — 페이지별 원본 이미지 ("image" 요소 크롭용).
+    elements는 받은 순서대로 그려 배경→전경 레이어를 재현한다.
+    오타는 사용자가 직접 고치므로 텍스트를 절대 임의로 수정하지 않는다.
+    """
+    if not isinstance(slides, list) or not slides:
+        raise ConvertError("bad_json", "슬라이드 데이터가 비어 있어요.")
+    font_name = FONTS.get(font_key, FONTS["malgun"])
+    prs = Presentation()
+    sw_in, sh_in = ASPECTS.get(aspect, ASPECTS["16:9"])
+    sw, sh = Emu(int(sw_in * 914400)), Emu(int(sh_in * 914400))
+    prs.slide_width, prs.slide_height = sw, sh
+    blank = prs.slide_layouts[6]
+
+    from PIL import Image as PILImage
+
+    def NX(x):
+        return Emu(int(max(0, min(1000, float(x or 0))) / 1000 * sw))
+    def NY(y):
+        return Emu(int(max(0, min(1000, float(y or 0))) / 1000 * sh))
+    def NW(w):
+        return Emu(max(1, int(max(0, float(w or 0)) / 1000 * sw)))
+    def NH(h):
+        return Emu(max(1, int(max(0, float(h or 0)) / 1000 * sh)))
+
+    def crop_source(page_no, x, y, w, h):
+        idx = (page_no or 1) - 1
+        if idx < 0 or idx >= len(sources) or not sources[idx]:
+            return None
+        try:
+            im = PILImage.open(io.BytesIO(sources[idx])).convert("RGB")
+            iw, ih = im.size
+            box = (int(x / 1000 * iw), int(y / 1000 * ih),
+                   int((x + w) / 1000 * iw), int((y + h) / 1000 * ih))
+            box = (max(0, box[0]), max(0, box[1]),
+                   min(iw, max(box[0] + 1, box[2])),
+                   min(ih, max(box[1] + 1, box[3])))
+            if box[2] <= box[0] or box[3] <= box[1]:
+                return None
+            buf = io.BytesIO()
+            im.crop(box).save(buf, format="PNG")
+            return buf.getvalue()
+        except Exception:
+            return None
+
+    n_slides = 0
+    for item in slides[:80]:
+        if not isinstance(item, dict):
+            continue
+        elements = item.get("elements")
+        if not isinstance(elements, list) or not elements:
+            continue
+        page_no = item.get("page", n_slides + 1)
+        slide = prs.slides.add_slide(blank)
+        n_slides += 1
+
+        for el in elements[:_MAX_ELEMENTS]:
+            if not isinstance(el, dict):
+                continue
+            etype = el.get("type")
+            try:
+                x, y = float(el.get("x", 0)), float(el.get("y", 0))
+                w, h = float(el.get("w", 0)), float(el.get("h", 0))
+            except (TypeError, ValueError):
+                continue
+            if w <= 0 or h <= 0:
+                continue
+            try:
+                if etype == "text":
+                    text = str(el.get("text", ""))
+                    if not text.strip():
+                        continue
+                    txBox = slide.shapes.add_textbox(NX(x), NY(y), NW(w), NH(h))
+                    tf = txBox.text_frame
+                    tf.word_wrap = True
+                    size = el.get("font_size", 18)
+                    try:
+                        size = max(6, min(72, float(size)))
+                    except (TypeError, ValueError):
+                        size = 18
+                    r, g, b = _hex_to_rgb(el.get("color"))
+                    align = _ALIGN_MAP.get(str(el.get("align", "left")).lower(),
+                                           PP_ALIGN.LEFT)
+                    first = True
+                    for chunk in text.split("\n"):
+                        p = tf.paragraphs[0] if first else tf.add_paragraph()
+                        first = False
+                        p.alignment = align
+                        run = p.add_run()
+                        run.text = chunk if chunk else " "
+                        run.font.size = Pt(size)
+                        run.font.bold = bool(el.get("bold", False))
+                        run.font.italic = bool(el.get("italic", False))
+                        run.font.color.rgb = RGBColor(r, g, b)
+                        set_korean_font(run, font_name)
+                elif etype == "shape":
+                    shape_type = (MSO_SHAPE.OVAL if
+                                  str(el.get("shape", "")).lower() == "ellipse"
+                                  else MSO_SHAPE.RECTANGLE)
+                    shp = slide.shapes.add_shape(shape_type, NX(x), NY(y),
+                                                 NW(w), NH(h))
+                    r, g, b = _hex_to_rgb(el.get("fill"), default=(0xF5, 0xF5, 0xF5))
+                    shp.fill.solid()
+                    shp.fill.fore_color.rgb = RGBColor(r, g, b)
+                    shp.line.fill.background()  # 테두리 없음
+                elif etype == "image":
+                    png = crop_source(page_no, x, y, w, h)
+                    if not png:
+                        continue
+                    slide.shapes.add_picture(io.BytesIO(png), NX(x), NY(y),
+                                             NW(w), NH(h))
+            except Exception:
+                continue
+
+        notes = str(item.get("notes", "")).strip()
+        if notes:
+            try:
+                slide.notes_slide.placeholders[1].text = notes
+            except Exception:
+                pass
+
+    if n_slides == 0:
+        raise ConvertError("bad_json", "슬라이드 요소가 비어 있어요.")
+
+    out = io.BytesIO()
+    prs.save(out)
+    return out.getvalue(), {
+        "mode": "precise",
+        "pages": n_slides,
+        "font": font_name,
+        "aspect": aspect,
+        "layout": True,
     }

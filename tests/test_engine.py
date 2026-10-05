@@ -180,6 +180,58 @@ def main():
     assert any(n.startswith("ppt/media/") for n in z5.namelist()), "media missing"
     print("[OK] build_from_images — 2 slides, images embedded")
 
+    # 레이아웃 재현 모드 (정밀 모드 v2)
+    src = Image.new("RGB", (1000, 1000), (240, 240, 240))
+    ds = ImageDraw.Draw(src)
+    ds.rectangle([600, 220, 880, 480], fill=(30, 60, 120))
+    sbuf = io.BytesIO()
+    src.save(sbuf, format="PNG")
+    layout_slides = [
+        {"page": 1, "elements": [
+            {"type": "text", "x": 120, "y": 60, "w": 760, "h": 110,
+             "text": "오타 수정 테스트", "font_size": 40, "bold": True,
+             "color": "1A1A2E", "align": "center"},
+            {"type": "text", "x": 100, "y": 220, "w": 440, "h": 120,
+             "text": "NotebookLM 슬라이드", "font_size": 20},
+            {"type": "shape", "shape": "rect", "x": 80, "y": 200,
+             "w": 840, "h": 300, "fill": "F5F5F5"},
+            {"type": "image", "x": 600, "y": 220, "w": 280, "h": 260},
+            {"type": "bogus", "x": 0, "y": 0, "w": 10, "h": 10},
+            {"type": "text", "x": 0, "y": 0, "w": 0, "h": 0, "text": "무시됨"},
+        ]},
+        {"page": 2, "notes": "발표 노트", "elements": [
+            {"type": "text", "x": 100, "y": 100, "w": 800, "h": 100,
+             "text": "둘째 장", "font_size": 32},
+        ]},
+    ]
+    pptx6, rep6 = engine.build_from_layout(layout_slides, [sbuf.getvalue()], "malgun", "16:9")
+    assert rep6["mode"] == "precise" and rep6["pages"] == 2 and rep6.get("layout"), rep6
+    check_pptx(pptx6, ["오타 수정 테스트", "NotebookLM 슬라이드", "둘째 장"],
+               expect_image=True, label="layout build")
+    z6 = zipfile.ZipFile(io.BytesIO(pptx6))
+    xml1 = z6.read("ppt/slides/slide1.xml").decode("utf-8")
+    # 텍스트 박스 2개 + 도형 1개 + 그림 1개 (bogus/무효 요소 제외)
+    assert xml1.count("<p:sp>") == 3, xml1.count("<p:sp>")  # 2 text + 1 shape
+    assert "<p:pic>" in xml1, "cropped image not embedded"
+    # 도형 테두리 없음 (영상의 검정 테두리 이슈 방지)
+    assert "<a:noFill/>" in xml1, "shape border not removed"
+    print("[OK] build_from_layout — 텍스트/도형/이미지 크롭, 한글 ea")
+
+    # 페이지 렌더
+    png = engine.render_page_png(data, 1)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n", "not png"
+    im = Image.open(io.BytesIO(png))
+    assert im.size[0] == 1500, im.size
+    print("[OK] render_page_png — 1500px 렌더")
+
+    # 빈 elements → 오류
+    try:
+        engine.build_from_layout([{"page": 1, "elements": []}], [])
+        raise AssertionError("should raise bad_json")
+    except engine.ConvertError as e:
+        assert e.code == "bad_json", e.code
+    print("[OK] layout empty → clean error")
+
     print("\nALL ENGINE TESTS PASSED")
 
 

@@ -23,7 +23,7 @@ def b64(path):
 def test_index():
     r = client.get("/")
     assert r.status_code == 200, r.status_code
-    assert "깨짐제로" in r.get_data(as_text=True)
+    assert "오타잡이" in r.get_data(as_text=True)
     assert "text/html" in r.content_type
     print("[OK] GET / → index.html")
 
@@ -101,6 +101,28 @@ def test_build_images():
     print("[OK] POST /api/build images")
 
 
+def test_build_layout():
+    # 레이아웃 모드: elements + pdf_base64 → 이미지 요소 크롭 임베드
+    r = client.post("/api/build", json={
+        "slides": [{"page": 1, "elements": [
+            {"type": "text", "x": 100, "y": 80, "w": 800, "h": 120,
+             "text": "레이아웃 제목", "font_size": 36, "bold": True,
+             "color": "1A1A2E", "align": "center"},
+            {"type": "image", "x": 90, "y": 140, "w": 400, "h": 220},
+        ]}],
+        "pdf_base64": b64(SAMPLE_PDF), "font": "malgun", "aspect": "16:9"})
+    d = r.get_json()
+    assert d["ok"] is True, d
+    assert d["report"]["mode"] == "precise" and d["report"].get("layout") is True, d["report"]
+    z = zipfile.ZipFile(io.BytesIO(base64.b64decode(d["pptx_base64"])))
+    xml = z.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "레이아웃 제목" in xml
+    assert xml.count("<a:rPr") == xml.count("<a:ea ")
+    assert "<p:pic>" in xml, "cropped image missing"
+    assert any(n.startswith("ppt/media/") for n in z.namelist())
+    print("[OK] POST /api/build layout — 위치 요소·이미지 크롭 OK")
+
+
 def test_build_errors():
     r = client.post("/api/build", json={"slides": []})
     assert r.get_json()["ok"] is False
@@ -118,6 +140,7 @@ if __name__ == "__main__":
     test_convert_needs_ocr()
     test_convert_errors()
     test_build_slides()
+    test_build_layout()
     test_build_images()
     test_build_errors()
     print("\nALL HTTP TESTS PASSED")

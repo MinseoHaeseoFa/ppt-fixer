@@ -1,4 +1,4 @@
-"""깨짐제로 PPT — Vercel Python 런타임용 Flask 단일 앱.
+"""오타잡이 PPT — Vercel Python 런타임용 Flask 단일 앱.
 
 엔트리포인트: pyproject.toml [tool.vercel] entrypoint = "app:app"
 모든 요청(/, /api/convert, /api/build)을 이 앱이 처리한다.
@@ -100,8 +100,45 @@ def build():
             if len(slides) > 80:
                 return jsonify(ok=False, code="too_many",
                                error="슬라이드가 너무 많아요. 80장 이하로 나눠주세요.")
-            pptx, report = engine.build_from_json(
-                slides, data.get("font", "malgun"), aspect)
+            font = data.get("font", "malgun")
+            use_layout = any(isinstance(s, dict) and isinstance(s.get("elements"), list)
+                             for s in slides)
+            if use_layout:
+                # 레이아웃 재현 모드: "image" 요소 크롭용 원본 페이지 이미지 준비
+                sources = []
+                pdf_b64 = data.get("pdf_base64", "")
+                if pdf_b64:
+                    try:
+                        pdf_bytes = base64.b64decode(pdf_b64)
+                    except Exception:
+                        return jsonify(ok=False, code="bad_input",
+                                       error="PDF 데이터를 읽을 수 없어요.")
+                    need_pages = set()
+                    for i, s in enumerate(slides):
+                        if isinstance(s, dict):
+                            for el in s.get("elements") or []:
+                                if isinstance(el, dict) and el.get("type") == "image":
+                                    need_pages.add(int(s.get("page", i + 1)))
+                    for i in range(len(slides)):
+                        pno = int(slides[i].get("page", i + 1)) \
+                            if isinstance(slides[i], dict) else i + 1
+                        if pno in need_pages:
+                            try:
+                                sources.append(engine.render_page_png(pdf_bytes, pno))
+                            except engine.ConvertError:
+                                sources.append(None)
+                        else:
+                            sources.append(None)
+                elif isinstance(images, list) and images:
+                    for it in images:
+                        b64 = it.get("data", "") if isinstance(it, dict) else it
+                        try:
+                            sources.append(base64.b64decode(b64))
+                        except Exception:
+                            sources.append(None)
+                pptx, report = engine.build_from_layout(slides, sources, font, aspect)
+            else:
+                pptx, report = engine.build_from_json(slides, font, aspect)
         return jsonify(ok=True, report=report,
                        pptx_base64=base64.b64encode(pptx).decode("ascii"))
     except engine.ConvertError as e:
